@@ -29,6 +29,4 @@ By default, the program uses the CPU to start 8 threads for rendering. Rendering
 
 ## References
 
-* [Ray Tracing in One Weekend]: https://raytracing.github.io/books/RayTracingInOneWeekend.html#wherenext?/nextsteps/otherdirections
-
-  
+* [Ray Tracing in One Weekend](ttps://raytracing.github.io/books/RayTracingInOneWeekend.html#wherenext?/nextsteps/otherdirections)
