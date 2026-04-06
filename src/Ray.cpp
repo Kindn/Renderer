@@ -1,9 +1,8 @@
 /*
- * filename: Ray.cpp 
+ * filename: Ray.cpp
  * author:   Peiyan Liu, HITSZ
  * E-mail:   1434615509@qq.com
- * brief:    
+ * brief:
  */
 
-#include "Ray.h" 
-
+#include "Ray.h"
