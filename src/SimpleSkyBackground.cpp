@@ -7,11 +7,11 @@
 
 #include "SimpleSkyBackground.h"
 
-Eigen::Vector3d SimpleSkyBackground::getRayColor(const Ray &ray) const {
-  const Eigen::Vector3d &direction = ray.getDirection();
-  const double a = 0.5 * (-direction.y() + 1.0);
-  const Eigen::Vector3d color1(1.0, 1.0, 1.0);
-  const Eigen::Vector3d color2(0.5, 0.7, 1.0);
+math::Vector3f SimpleSkyBackground::getRayColor(const Ray &ray) const {
+  const math::Vector3f &direction = ray.getDirection();
+  const float a = 0.5f * (-direction.y() + 1.0f);
+  const math::Vector3f color1(1.0f, 1.0f, 1.0f);
+  const math::Vector3f color2(0.5f, 0.7, 1.0f);
 
-  return (1.0 - a) * color1 + a * color2;
+  return (1.0f - a) * color1 + a * color2;
 }

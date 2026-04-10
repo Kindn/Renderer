@@ -10,36 +10,36 @@ int main(int argc, char **argv) {
   HittableList world;
 
   MaterialBase::Ptr material_ground =
-      std::make_shared<Lambertian>(Eigen::Vector3d{0.8, 0.8, 0.0});
+      std::make_shared<Lambertian>(math::Vector3f{0.8, 0.8, 0.0f});
   MaterialBase::Ptr material_center =
-      std::make_shared<Lambertian>(Eigen::Vector3d{0.1, 0.2, 0.5});
+      std::make_shared<Lambertian>(math::Vector3f{0.1, 0.2f, 0.5f});
   MaterialBase::Ptr material_left =
-      std::make_shared<Metal>(Eigen::Vector3d{0.8, 0.8, 0.8}, 0.3);
+      std::make_shared<Metal>(math::Vector3f{0.8, 0.8, 0.8}, 0.3);
   MaterialBase::Ptr material_right =
-      std::make_shared<Metal>(Eigen::Vector3d{0.8, 0.6, 0.2}, 1.0);
+      std::make_shared<Metal>(math::Vector3f{0.8, 0.6, 0.2f}, 1.0f);
 
   BackgroundBase::Ptr background = std::make_shared<SimpleSkyBackground>();
 
   world.add(
-      std::make_shared<Sphere>(Point3D{0.0, 0.0, 2.7}, 1.5, material_center));
+      std::make_shared<Sphere>(Point3D{0.0f, 0.0f, 2.7}, 1.5f, material_center));
   world.add(
-      std::make_shared<Sphere>(Point3D{0.0, 101.5, 2.0}, 100, material_ground));
+      std::make_shared<Sphere>(Point3D{0.0f, 101.5f, 2.0f}, 100, material_ground));
   world.add(
-      std::make_shared<Sphere>(Point3D{-3.0, 0, 2.0}, 1.5, material_left));
+      std::make_shared<Sphere>(Point3D{-3.0f, 0, 2.0f}, 1.5f, material_left));
   world.add(
-      std::make_shared<Sphere>(Point3D{3.0, 0, 2.0}, 1.5, material_right));
+      std::make_shared<Sphere>(Point3D{3.0f, 0, 2.0f}, 1.5f, material_right));
 
-  const double aspect_ratio = 16.0 / 9.0;
+  const float aspect_ratio = 16.0f / 9.0f;
   const size_t image_width = 400;
   const size_t image_height = static_cast<size_t>(image_width / aspect_ratio);
-  const double fov_height = 2.0;
-  const double fov_width =
-      fov_height * (static_cast<double>(image_width) / image_height);
-  const double focal_length = 1.0;
+  const float fov_height = 2.0f;
+  const float fov_width =
+      fov_height * (static_cast<float>(image_width) / image_height);
+  const float focal_length = 1.0f;
   const Point3D camera_position(0, 0, -focal_length);
 
   const Camera camera(image_width, image_height, fov_width, fov_height,
-                      focal_length, 0.0, camera_position);
+                      focal_length, 0.0f, camera_position);
 
   RayTracer::Config renderer_config;
   renderer_config.background = background;

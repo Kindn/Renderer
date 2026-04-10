@@ -8,8 +8,8 @@
 #include "Sphere.h" 
 
 Sphere::Sphere(const Point3D &center, 
-               const double &radius, 
-               const MaterialBase::Ptr &material): 
+               const float &radius, 
+               const std::shared_ptr<MaterialBase> &material): 
 HittableBase(material), 
 center_{center}, 
 radius_{radius} {
@@ -17,23 +17,23 @@ radius_{radius} {
 }
 
 bool Sphere::hit(const Ray &ray, 
-                 const Intervald &interval,
+                 const Intervalf &interval,
                  HitRecord &hit_record) const {
     const Point3D &ray_dir = ray.getDirection(); 
-    const Eigen::Vector3d &ray_ori = ray.getOrigin(); 
-    const Eigen::Vector3d oc = center_ - ray_ori; 
-    const double a = ray_dir.squaredNorm(); 
-    const double c = oc.squaredNorm() - radius_ * radius_; 
-    const double h = oc.dot(ray_dir);
+    const math::Vector3f &ray_ori = ray.getOrigin(); 
+    const math::Vector3f oc = center_ - ray_ori; 
+    const float a = ray_dir.SquaredNorm(); 
+    const float c = oc.SquaredNorm() - radius_ * radius_; 
+    const float h = oc.Dot(ray_dir);
 
-    const double delta = h * h - a * c; 
+    const float delta = h * h - a * c; 
     if (delta < 0) {
         return false; 
     }
 
     // Find the nearest root that lies in the acceptable range 
-    const double sqrtd = std::sqrt(delta); 
-    double root = (h - sqrtd) / a; 
+    const float sqrtd = std::sqrt(delta); 
+    float root = (h - sqrtd) / a; 
     if (!interval.surrounds(root)) {
         root = (h + sqrtd) / a; 
         if (!interval.surrounds(root)) {
@@ -42,7 +42,7 @@ bool Sphere::hit(const Ray &ray,
     }
     hit_record.t = root; 
     hit_record.p = ray.at(root); 
-    const Eigen::Vector3d outward_normal = (hit_record.p - center_).normalized(); 
+    const math::Vector3f outward_normal = (hit_record.p - center_).Normalized(); 
     hit_record.setFaceNormal(ray, outward_normal); 
     hit_record.material = this->material_; 
 

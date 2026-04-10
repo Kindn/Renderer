@@ -18,12 +18,10 @@ class MaterialBase {
 public:
   typedef std::shared_ptr<MaterialBase> Ptr;
 
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
   virtual ~MaterialBase() {}
 
   virtual bool scatter(const Ray &ray_in, const HitRecord &hit_record,
-                       Eigen::Vector3d &attenuation, Ray &scattered_ray) const {
+                       math::Vector3f &attenuation, Ray &scattered_ray) const {
     return false;
   }
 };

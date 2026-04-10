@@ -7,24 +7,23 @@
 
 #include "RayTracer.h"
 
-Eigen::Vector3d RayTracer::getRayColor(const Ray &ray,
-                                       const HittableList &world,
-                                       const int &depth) const {
+math::Vector3f RayTracer::getRayColor(const Ray &ray, const HittableList &world,
+                                      const int &depth) const {
   if (depth <= 0) {
-    return Eigen::Vector3d::Zero();
+    return math::Vector3f::Zero();
   }
 
   HitRecord hit_record;
-  if (world.hit(ray, Intervald{0.001, infd}, hit_record)) {
+  if (world.hit(ray, Intervalf{0.001, inff}, hit_record)) {
     if (hit_record.material != nullptr) {
       Ray scattered;
-      Eigen::Vector3d attenuation;
+      math::Vector3f attenuation;
       if (hit_record.material->scatter(ray, hit_record, attenuation,
                                        scattered)) {
-        return attenuation.cwiseProduct(
+        return attenuation.CwiseProduct(
             getRayColor(scattered, world, depth - 1));
       } else {
-        return Eigen::Vector3d::Zero();
+        return math::Vector3f::Zero();
       }
     }
   }
@@ -42,13 +41,13 @@ void RayTracer::render(const Camera &camera, const HittableList &world,
     std::clog << "\rScanlines remaining: " << (image_height - row) << " "
               << std::flush;
     for (size_t col = 0; col < image_width; ++col) {
-      Eigen::Vector3d color{0.0, 0.0, 0.0};
+      math::Vector3f color{0.0f, 0.0f, 0.0f};
       for (int i = 0; i < config_.samples_per_pixel; ++i) {
         const Ray ray = camera.getDefocusPerturbedRay(PixCoord(col, row),
                                                       config_.max_sample_pert);
         color += getRayColor(ray, world, config_.max_depth);
       }
-      color /= double(config_.samples_per_pixel);
+      color /= float(config_.samples_per_pixel);
       writeColorToOStream(out_stream, color);
       out_stream << std::endl;
     }
@@ -71,9 +70,8 @@ void RayTracer::renderMultiThread(const Camera &camera,
   std::clog << kNumThreads << " threads will be created for rendering. "
             << std::endl;
 
-  nums_finished_rows_.resize(kNumThreads);
-  nums_finished_rows_.setZero();
-  std::vector<std::vector<Eigen::Vector3d>> row_buffers{image_height};
+  nums_finished_rows_.resize(kNumThreads, 0UL);
+  std::vector<std::vector<math::Vector3f>> row_buffers{image_height};
   for (size_t i = 0; i < image_height; ++i) {
     row_buffers[i].resize(image_width);
   }
@@ -112,23 +110,23 @@ void RayTracer::renderMultiThread(const Camera &camera,
 void RayTracer::threadRendering(
     const Camera *camera, const HittableList *world, const size_t &start_row,
     const size_t &num_rows,
-    std::vector<std::vector<Eigen::Vector3d>> *row_buffers, const size_t &idx) {
+    std::vector<std::vector<math::Vector3f>> *row_buffers, const size_t &idx) {
   const size_t end_row =
       std::min(start_row + num_rows - 1, row_buffers->size() - 1);
   for (size_t row = start_row; row <= end_row; ++row) {
-    std::vector<Eigen::Vector3d> &row_buffer = row_buffers->at(row);
+    std::vector<math::Vector3f> &row_buffer = row_buffers->at(row);
     for (size_t col = 0; col < row_buffer.size(); ++col) {
-      Eigen::Vector3d &color = row_buffer[col];
-      color.setZero();
+      math::Vector3f &color = row_buffer[col];
+      color.SetZero();
       for (int i = 0; i < config_.samples_per_pixel; ++i) {
         const Ray ray = camera->getDefocusPerturbedRay(PixCoord(col, row),
                                                        config_.max_sample_pert);
         color += getRayColor(ray, *world, config_.max_depth);
       }
-      color /= double(config_.samples_per_pixel);
+      color /= float(config_.samples_per_pixel);
     }
     mutex_.lock();
-    ++nums_finished_rows_(idx);
+    ++nums_finished_rows_[idx];
     mutex_.unlock();
   }
 }

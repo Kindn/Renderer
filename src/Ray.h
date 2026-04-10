@@ -12,33 +12,31 @@
 
 class Ray {
 public:
-  Ray(const Point3D &origin = Point3D::Zero(),
-      const Eigen::Vector3d &direction = Eigen::Vector3d::UnitX())
-      : origin_{origin}, direction_{direction.normalized()} {
-    assert(direction_.norm() > std::numeric_limits<double>::epsilon());
+  HOST_DEVICE_FUNC Ray(const Point3D &origin = Point3D::Zero(),
+                  const math::Vector3f &direction = math::Vector3f::UnitX())
+      : origin_{origin}, direction_{direction.Normalized()} {
+    assert(direction_.Norm() > 1.0e-32);
   }
 
-  const Point3D &getOrigin() const { return origin_; }
+  HOST_DEVICE_FUNC const Point3D &getOrigin() const { return origin_; }
 
   /**
    * @brief Get the unit direction vector
    */
-  const Eigen::Vector3d &getDirection() const { return direction_; }
+  HOST_DEVICE_FUNC const math::Vector3f &getDirection() const { return direction_; }
 
-  void setOrigin(const Point3D &origin) { origin_ = origin; }
+  HOST_DEVICE_FUNC void setOrigin(const Point3D &origin) { origin_ = origin; }
 
-  void setDirection(const Eigen::Vector3d &direction) {
-    assert(direction.norm() > std::numeric_limits<double>::epsilon());
-    direction_ = direction.normalized();
+  HOST_DEVICE_FUNC void setDirection(const math::Vector3f &direction) {
+    assert(direction.Norm() > 1.0e-32);
+    direction_ = direction.Normalized();
   }
 
-  Point3D at(double t) const { return origin_ + t * direction_; }
-
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  HOST_DEVICE_FUNC Point3D at(float t) const { return origin_ + t * direction_; }
 
 private:
   Point3D origin_;
-  Eigen::Vector3d direction_;
+  math::Vector3f direction_;
 };
 
 #endif // _RAY_H_

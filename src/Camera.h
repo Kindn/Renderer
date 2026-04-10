@@ -13,38 +13,38 @@
 class Camera {
 public:
   Camera(const size_t &image_width = 640, const size_t &image_height = 480,
-         const double &fov_width = 1.2, const double &fov_height = 0.9,
-         const double &focal_length = 1.0, const double &defocus_angle = 0.0,
+         const float &fov_width = 1.2f, const float &fov_height = 0.9,
+         const float &focal_length = 1.0f, const float &defocus_angle = 0.0f,
          const Point3D &position = Point3D::Zero(),
-         const Eigen::Quaterniond &rotation = Eigen::Quaterniond::Identity(),
+         const math::Quaternionf &rotation = math::Quaternionf::Identity(),
          const std::uint_fast32_t &rng_seed = time(NULL));
 
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  
 
 public:
   const size_t &getImageWidth() const { return image_width_; }
 
   const size_t &getImageHeight() const { return image_height_; }
 
-  const double &getFOVWidth() const { return fov_width_; }
+  const float &getFOVWidth() const { return fov_width_; }
 
-  const double &getFOVHeight() const { return fov_height_; }
+  const float &getFOVHeight() const { return fov_height_; }
 
-  const double &getImageCenterX() const { return image_center_x_; }
+  const float &getImageCenterX() const { return image_center_x_; }
 
-  const double &getImageCenterY() const { return image_center_y_; }
+  const float &getImageCenterY() const { return image_center_y_; }
 
-  const double &getFocalLength() const { return focal_length_; }
+  const float &getFocalLength() const { return focal_length_; }
 
-  const double &getDefocusAngle() const { return defocus_angle_; }
+  const float &getDefocusAngle() const { return defocus_angle_; }
 
   const Point3D &getPosition() const { return position_; }
 
-  const Eigen::Quaterniond &getRotation() const { return rotation_; }
+  const math::Quaternionf &getRotation() const { return rotation_; }
 
-  double getPixelSizeX() const { return fov_width_ / image_width_; }
+  float getPixelSizeX() const { return fov_width_ / image_width_; }
 
-  double getPixelSizeY() const { return fov_height_ / image_height_; }
+  float getPixelSizeY() const { return fov_height_ / image_height_; }
 
   void setImageWidth(const size_t &image_width) {
     assert(image_width > 0);
@@ -56,45 +56,45 @@ public:
     image_height_ = image_height;
   }
 
-  void setFOVWidth(const double &fov_width) {
-    assert(fov_width > std::numeric_limits<double>::epsilon());
+  void setFOVWidth(const float &fov_width) {
+    assert(fov_width > std::numeric_limits<float>::epsilon());
     fov_width_ = fov_width;
   }
 
-  void setFOVHeight(const double &fov_height) {
-    assert(fov_height > std::numeric_limits<double>::epsilon());
+  void setFOVHeight(const float &fov_height) {
+    assert(fov_height > std::numeric_limits<float>::epsilon());
     fov_height_ = fov_height;
   }
 
-  void setImageCenterX(const double &image_center_x) {
+  void setImageCenterX(const float &image_center_x) {
     image_center_x_ = image_center_x;
   }
 
-  void setImageCenterY(const double &image_center_y) {
+  void setImageCenterY(const float &image_center_y) {
     image_center_y_ = image_center_y;
   }
 
-  void setFocalLength(const double &focal_length) {
-    assert(focal_length > std::numeric_limits<double>::epsilon());
+  void setFocalLength(const float &focal_length) {
+    assert(focal_length > std::numeric_limits<float>::epsilon());
     focal_length_ = focal_length;
-    defocus_radius_ = focal_length * std::tan(defocus_angle_ / 2.0);
+    defocus_radius_ = focal_length * std::tan(defocus_angle_ / 2.0f);
   }
 
-  void setDefocusAngle(const double &defocus_angle) {
-    assert(defocus_angle > std::numeric_limits<double>::epsilon() &&
+  void setDefocusAngle(const float &defocus_angle) {
+    assert(defocus_angle > std::numeric_limits<float>::epsilon() &&
            defocus_angle < M_PI);
     defocus_angle_ = defocus_angle;
-    defocus_radius_ = focal_length_ * std::tan(defocus_angle / 2.0);
+    defocus_radius_ = focal_length_ * std::tan(defocus_angle / 2.0f);
   }
 
   void setPosition(const Point3D &position) { position_ = position; }
 
-  void setRotation(const Eigen::Quaterniond &rotation) { rotation_ = rotation; }
+  void setRotation(const math::Quaternionf &rotation) { rotation_ = rotation; }
 
   Point3D getPixelCameraCoordinate(const PixCoord &pixel_coordinate) const;
 
   Point3D getPerturbedPixelCameraCoordinate(const PixCoord &pixel_coordinate,
-                                            const double &max_pert) const;
+                                            const float &max_pert) const;
 
   Point3D defocusDiskSample() const;
 
@@ -103,28 +103,28 @@ public:
   Ray getRay(const PixCoord &pixel_coordinate) const;
 
   Ray getPerturbedRay(const PixCoord &pixel_coordinate,
-                      const double &max_perturb) const;
+                      const float &max_perturb) const;
 
   Ray getDefocusPerturbedRay(const PixCoord &pixel_coordinate,
-                             const double &max_perturb) const;
+                             const float &max_perturb) const;
 
 private:
   std::unique_ptr<RandomNumberGenerator> rng_;
 
   size_t image_width_;
   size_t image_height_;
-  double fov_width_;
-  double fov_height_;
+  float fov_width_;
+  float fov_height_;
 
-  double image_center_x_;
-  double image_center_y_;
+  float image_center_x_;
+  float image_center_y_;
 
-  double focal_length_;
-  double defocus_angle_{0.0};
-  double defocus_radius_;
+  float focal_length_;
+  float defocus_angle_{0.0f};
+  float defocus_radius_;
 
   Point3D position_;
-  Eigen::Quaterniond rotation_;
+  math::Quaternionf rotation_;
 };
 
 #endif // _CAMERA_H_

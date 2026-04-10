@@ -8,15 +8,15 @@
 #include "Lambertian.h"
 
 bool Lambertian::scatter(const Ray &ray_in, const HitRecord &hit_record,
-                         Eigen::Vector3d &attenuation,
+                         math::Vector3f &attenuation,
                          Ray &scattered_ray) const {
-  Eigen::Vector3d scatter_direction =
+  math::Vector3f scatter_direction =
       hit_record.normal + rng_->uniformPoint3DOnUnitSphere3D();
-  if (scatter_direction.norm() <= std::numeric_limits<double>::epsilon()) {
+  if (scatter_direction.Norm() <= std::numeric_limits<float>::epsilon()) {
     scatter_direction = hit_record.normal;
   }
 
-  scattered_ray = Ray(hit_record.p, scatter_direction);
+  scattered_ray = Ray(hit_record.p, scatter_direction.Normalized());
   attenuation = albedo_;
 
   return true;

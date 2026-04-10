@@ -1,26 +1,26 @@
 #include "Camera.h"
 
-Eigen::Vector3d getRayColor(const Ray &ray) {
-  const Eigen::Vector3d &direction = ray.getDirection();
-  const double a = 0.5 * (direction.y() + 1.0);
-  const Eigen::Vector3d color1(1.0, 1.0, 1.0);
-  const Eigen::Vector3d color2(0.5, 0.7, 1.0);
+math::Vector3f getRayColor(const Ray &ray) {
+  const math::Vector3f &direction = ray.getDirection();
+  const float a = 0.5f * (direction.y() + 1.0f);
+  const math::Vector3f color1(1.0f, 1.0f, 1.0f);
+  const math::Vector3f color2(0.5f, 0.7, 1.0f);
 
-  return (1.0 - a) * color1 + a * color2;
+  return (1.0f - a) * color1 + a * color2;
 }
 
 int main(int argc, char **argv) {
-  const double aspect_ratio = 16.0 / 9.0;
+  const float aspect_ratio = 16.0f / 9.0f;
   const size_t image_width = 400;
   const size_t image_height = static_cast<size_t>(image_width / aspect_ratio);
-  const double fov_height = 2.0;
-  const double fov_width =
-      fov_height * (static_cast<double>(image_width) / image_height);
-  const double focal_length = 1.0;
+  const float fov_height = 2.0f;
+  const float fov_width =
+      fov_height * (static_cast<float>(image_width) / image_height);
+  const float focal_length = 1.0f;
   const Point3D camera_position(0, 0, -focal_length);
 
   const Camera camera(image_width, image_height, fov_width, fov_height,
-                      focal_length, 0.0, camera_position);
+                      focal_length, 0.0f, camera_position);
 
   std::cout << "P3\n" << image_width << " " << image_height << "\n255\n";
 
@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
               << std::flush;
     for (size_t col = 0; col < image_width; ++col) {
       const Ray ray = camera.getRay(PixCoord(col, row));
-      const Eigen::Vector3d color = getRayColor(ray);
+      const math::Vector3f color = getRayColor(ray);
       writeColorToOStream(std::cout, color);
       std::cout << std::endl;
     }

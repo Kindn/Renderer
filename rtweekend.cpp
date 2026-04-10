@@ -7,14 +7,27 @@
 #include "SimpleSkyBackground.h"
 #include "Sphere.h"
 
-Eigen::Quaterniond getCameraRotation(const Eigen::Vector3d &lookfrom,
-                                     const Eigen::Vector3d &lookat,
-                                     const Eigen::Vector3d &vup) {
-  Eigen::Matrix3d R;
-  R.col(2) = (lookat - lookfrom).normalized();
-  R.col(0) = -(vup.cross(R.col(2))).normalized();
-  R.col(1) = R.col(2).cross(R.col(0));
-  return Eigen::Quaterniond{R};
+#include <fstream>
+
+math::Quaternionf getCameraRotation(const math::Vector3f &lookfrom,
+                                    const math::Vector3f &lookat,
+                                    const math::Vector3f &vup) {
+  math::Matrix3f R;
+  auto const R_col_2 = (lookat - lookfrom).Normalized();
+  auto const R_col_0 = -(vup.Cross(R_col_2)).Normalized();
+  auto const R_col_1 = R_col_2.Cross(R_col_0);
+  R(0, 0) = R_col_0.x();
+  R(1, 0) = R_col_0.y();
+  R(2, 0) = R_col_0.z();
+  R(0, 1) = R_col_1.x();
+  R(1, 1) = R_col_1.y();
+  R(2, 1) = R_col_1.z();
+  R(0, 2) = R_col_2.x();
+  R(1, 2) = R_col_2.y();
+  R(2, 2) = R_col_2.z();
+  std::cout << "cam R: \n" << R << std::endl;
+  std::cout << "check: \n" << math::Quaternionf{R}.ToRotationMatrix() << std::endl;
+  return math::Quaternionf{R};
 }
 
 int main(int argc, char **argv) {
@@ -23,64 +36,66 @@ int main(int argc, char **argv) {
   HittableList world;
 
   const MaterialBase::Ptr ground_material =
-      std::make_shared<Lambertian>(Eigen::Vector3d{0.5, 0.5, 0.5});
+      std::make_shared<Lambertian>(math::Vector3f{0.5f, 0.5f, 0.5f});
   world.add(
-      std::make_shared<Sphere>(Point3D{0, -1000, 0}, 1000, ground_material));
+      std::make_shared<Sphere>(Point3D{0, 0, -1000}, 1000, ground_material));
 
   for (int a = -11; a < 11; ++a) {
     for (int b = -11; b < 11; ++b) {
-      const double choose_material = rng.uniform01();
-      const Point3D center{a + 0.9 * rng.uniform01(), 0.2,
-                           b + 0.9 * rng.uniform01()};
+      const float choose_material = rng.uniform01();
+      const Point3D center{a + 0.9f * rng.uniformReal(-1.0f, 1.0f),
+                           b + 0.9f * rng.uniformReal(-1.0f, 1.0f), 0.2f};
 
-      if ((center - Point3D{4.0, 0.2, 0.0}).norm() > 0.9) {
+      if ((center - Point3D{4.0f, 0.2f, 0.0f}).Norm() > 0.9f) {
         MaterialBase::Ptr material;
-        if (choose_material < 0.8) {
+        if (choose_material < 0.8f) {
           //* Diffuse
-          const Eigen::Vector3d albedo =
-              rng.uniformRealMatrix<3, 1>().cwiseProduct(
+          const math::Vector3f albedo =
+              rng.uniformRealMatrix<3, 1>().CwiseProduct(
                   rng.uniformRealMatrix<3, 1>());
+          std::cout << "lambertian, albedo: " << albedo << std::endl;
           material = std::make_shared<Lambertian>(albedo);
-          world.add(std::make_shared<Sphere>(center, 0.2, material));
-        } else if (choose_material < -0.95) {
-          //* Meta
-          const Eigen::Vector3d albedo = rng.uniformRealMatrix<3, 1>(0.5, 1.0);
-          const double fuzz = rng.uniformReal(0.0, 0.5);
+          world.add(std::make_shared<Sphere>(center, 0.2f, material));
+        } else if (choose_material < 0.95f) {
+          //* Metal
+          const math::Vector3f albedo = rng.uniformRealMatrix<3, 1>(0.5f, 1.0f);
+          std::cout << "metal, albedo: " << albedo << std::endl;
+          const float fuzz = rng.uniformReal(0.0f, 0.5f);
           material = std::make_shared<Metal>(albedo, fuzz);
-          world.add(std::make_shared<Sphere>(center, 0.2, material));
+          world.add(std::make_shared<Sphere>(center, 0.2f, material));
         } else {
           //* Glass
-          material = std::make_shared<Dielectric>(1.5);
-          world.add(std::make_shared<Sphere>(center, 0.2, material));
+          material = std::make_shared<Dielectric>(1.5f);
+          world.add(std::make_shared<Sphere>(center, 0.2f, material));
         }
       }
     }
   }
 
-  const MaterialBase::Ptr material1 = std::make_shared<Dielectric>(1.5);
-  world.add(std::make_shared<Sphere>(Point3D{0, 1, 0}, 1.0, material1));
+  const MaterialBase::Ptr material1 = std::make_shared<Dielectric>(1.5f);
+  world.add(std::make_shared<Sphere>(Point3D{0, 0, 1}, 1.0f, material1));
 
   const MaterialBase::Ptr material2 =
-      std::make_shared<Lambertian>(Eigen::Vector3d{0.4, 0.2, 0.1});
-  world.add(std::make_shared<Sphere>(Point3D{-4, 1, 0}, 1.0, material2));
+      std::make_shared<Lambertian>(math::Vector3f{0.4, 0.2f, 0.1});
+  world.add(std::make_shared<Sphere>(Point3D{-4, 0, 1}, 1.0f, material2));
 
   const MaterialBase::Ptr material3 =
-      std::make_shared<Metal>(Eigen::Vector3d{0.7, 0.6, 0.5}, 0.0);
-  world.add(std::make_shared<Sphere>(Point3D{4, 1, 0}, 1.0, material3));
+      std::make_shared<Metal>(math::Vector3f{0.7, 0.6, 0.5f}, 0.0f);
+  world.add(std::make_shared<Sphere>(Point3D{4, 0, 1}, 1.0f, material3));
 
-  const double aspect_ratio = 9.0 / 16.0;
-  const size_t image_width = 675;
+  const float aspect_ratio = 3.0f / 4.0f;
+  const size_t image_width = 320UL;
   const size_t image_height = static_cast<size_t>(image_width / aspect_ratio);
-  const double vfov = 40.0 * M_PI / 180.0;
-  const double focal_length = 10.0;
-  const double fov_height = 2.0 * std::tan(vfov / 2.0) * focal_length;
-  const double fov_width =
-      fov_height * (static_cast<double>(image_width) / image_height);
-  const double defocus_angle = 0.6 * M_PI / 180.0;
-  const Point3D camera_position{13, 2, 3};
-  const Point3D lookat{0.0, 0.0, 0.0};
-  const Eigen::Vector3d vup{0.0, 1.0, 0.0};
-  const Eigen::Quaterniond camera_rotation =
+  const float vfov = 60.0f * M_PI / 180.0f;
+  const float focal_length = 1.0f;
+  const float fov_height = 2.0f * std::tan(vfov / 2.0f) * focal_length;
+  const float fov_width =
+      fov_height * (static_cast<float>(image_width) / image_height);
+  const float defocus_angle = 0.6 * M_PI / 180.0f;
+  const Point3D camera_position{8, 0, 2};
+  const Point3D lookat{0.0f, 0.0f, 0.0f};
+  const math::Vector3f vup{0.0f, 0.0f, 1.0f};
+  const math::Quaternionf camera_rotation =
       getCameraRotation(camera_position, lookat, vup);
 
   Camera camera(image_width, image_height, fov_width, fov_height, focal_length,
@@ -90,17 +105,24 @@ int main(int argc, char **argv) {
   renderer_config.background = std::make_shared<SimpleSkyBackground>();
   renderer_config.samples_per_pixel = 500;
   renderer_config.max_depth = 50;
-  renderer_config.max_sample_pert = 0.5;
+  renderer_config.max_sample_pert = 0.5f;
   RayTracer renderer(renderer_config);
-  const size_t max_num_threads = 8;
+  const size_t max_num_threads = 8UL;
+  std::string const output_path{argv[1]};
+  std::ofstream ofs{output_path};
+  if (!ofs.is_open()) {
+    std::cout << "Error! Cannot open output path " << output_path << std::endl;
+  }
   TicToc tictoc;
   tictoc.tic();
-  renderer.renderMultiThread(camera, world, max_num_threads, std::cout);
-  const double rendering_time = tictoc.toc();
+  renderer.renderMultiThread(camera, world, max_num_threads, ofs);
+  const float rendering_time = tictoc.toc();
   std::clog << "Rendering time: " << int(rendering_time) / 3600 << ":"
             << (int(rendering_time) % 3600) / 60 << ":"
             << (rendering_time - int(rendering_time) / 60 * 60) << "."
             << std::endl;
+
+  ofs.close();
 
   return 0;
 }

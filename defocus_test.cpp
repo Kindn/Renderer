@@ -11,46 +11,46 @@ int main(int argc, char **argv) {
   HittableList world;
 
   MaterialBase::Ptr material_ground =
-      std::make_shared<Lambertian>(Eigen::Vector3d{0.8, 0.8, 0.0});
+      std::make_shared<Lambertian>(math::Vector3f{0.8, 0.8, 0.0f});
   MaterialBase::Ptr material_center =
-      std::make_shared<Lambertian>(Eigen::Vector3d{0.1, 0.2, 0.5});
+      std::make_shared<Lambertian>(math::Vector3f{0.1, 0.2f, 0.5f});
   MaterialBase::Ptr material_left = std::make_shared<Dielectric>(1.50);
   MaterialBase::Ptr material_bubble = std::make_shared<Dielectric>(1.00 / 1.50);
   MaterialBase::Ptr material_right =
-      std::make_shared<Metal>(Eigen::Vector3d{0.8, 0.6, 0.2}, 1.0);
+      std::make_shared<Metal>(math::Vector3f{0.8, 0.6, 0.2f}, 1.0f);
 
   BackgroundBase::Ptr background = std::make_shared<SimpleSkyBackground>();
 
   world.add(
-      std::make_shared<Sphere>(Point3D{0.0, 0.0, 1.2}, 0.5, material_center));
-  world.add(std::make_shared<Sphere>(Point3D{0.0, 100.5, -1.2}, 100.0,
+      std::make_shared<Sphere>(Point3D{0.0f, 0.0f, 1.2f}, 0.5f, material_center));
+  world.add(std::make_shared<Sphere>(Point3D{0.0f, 100.5f, -1.2f}, 100.0f,
                                      material_ground));
   world.add(
-      std::make_shared<Sphere>(Point3D{-1.0, 0, 1.0}, 0.5, material_left));
+      std::make_shared<Sphere>(Point3D{-1.0f, 0, 1.0f}, 0.5f, material_left));
   world.add(
-      std::make_shared<Sphere>(Point3D{-1.0, 0, 1.0}, 0.4, material_bubble));
+      std::make_shared<Sphere>(Point3D{-1.0f, 0, 1.0f}, 0.4, material_bubble));
   world.add(
-      std::make_shared<Sphere>(Point3D{1.0, 0, 1.0}, 0.5, material_right));
+      std::make_shared<Sphere>(Point3D{1.0f, 0, 1.0f}, 0.5f, material_right));
 
-  const double aspect_ratio = 16.0 / 9.0;
+  const float aspect_ratio = 16.0f / 9.0f;
   const size_t image_width = 400;
   const size_t image_height = static_cast<size_t>(image_width / aspect_ratio);
-  const double vfov = 20.0 * M_PI / 180.0;
-  const double focal_length = 3.4;
-  const double fov_height = 2.0 * std::tan(vfov / 2.0) * focal_length;
-  const double fov_width =
-      fov_height * (static_cast<double>(image_width) / image_height);
-  const double defocus_angle = 10.0 * M_PI / 180.0;
+  const float vfov = 20.0f * M_PI / 180.0f;
+  const float focal_length = 3.4;
+  const float fov_height = 2.0f * std::tan(vfov / 2.0f) * focal_length;
+  const float fov_width =
+      fov_height * (static_cast<float>(image_width) / image_height);
+  const float defocus_angle = 10.0f * M_PI / 180.0f;
   const Point3D camera_position(-2, -2, -1);
-  const Eigen::Vector3d camera_rotation_rpy{-std::atan2(1.0, std::sqrt(2.0)),
-                                            M_PI / 4.0, 0.0};
-  const Eigen::Quaterniond camera_rotation =
-      Eigen::Quaterniond{std::cos(camera_rotation_rpy.z() / 2.0), 0, 0,
-                         std::sin(camera_rotation_rpy.z() / 2.0)} *
-      Eigen::Quaterniond{std::cos(camera_rotation_rpy.y() / 2.0), 0,
-                         std::sin(camera_rotation_rpy.y() / 2.0), 0} *
-      Eigen::Quaterniond{std::cos(camera_rotation_rpy.x() / 2.0),
-                         std::sin(camera_rotation_rpy.x() / 2.0), 0, 0};
+  const math::Vector3f camera_rotation_rpy{-std::atan2(1.0f, std::sqrt(2.0f)),
+                                            M_PI / 4.0f, 0.0f};
+  const math::Quaternionf camera_rotation =
+      math::Quaternionf{std::cos(camera_rotation_rpy.z() / 2.0f), 0, 0,
+                         std::sin(camera_rotation_rpy.z() / 2.0f)} *
+      math::Quaternionf{std::cos(camera_rotation_rpy.y() / 2.0f), 0,
+                         std::sin(camera_rotation_rpy.y() / 2.0f), 0} *
+      math::Quaternionf{std::cos(camera_rotation_rpy.x() / 2.0f),
+                         std::sin(camera_rotation_rpy.x() / 2.0f), 0, 0};
 
   const Camera camera(image_width, image_height, fov_width, fov_height,
                       focal_length, defocus_angle, camera_position,

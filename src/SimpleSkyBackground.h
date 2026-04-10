@@ -15,18 +15,18 @@ public:
   typedef std::shared_ptr<SimpleSkyBackground> Ptr;
 
   SimpleSkyBackground() {}
-  SimpleSkyBackground(const Eigen::Vector3d &color1,
-                      const Eigen::Vector3d &color2)
+  SimpleSkyBackground(const math::Vector3f &color1,
+                      const math::Vector3f &color2)
       : color1_{color1}, color2_{color2} {}
 
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  
 
 public:
-  Eigen::Vector3d getRayColor(const Ray &ray) const override;
+  math::Vector3f getRayColor(const Ray &ray) const override;
 
 private:
-  Eigen::Vector3d color1_{1.0, 1.0, 1.0};
-  Eigen::Vector3d color2_{0.5, 0.7, 1.0};
+  math::Vector3f color1_{1.0f, 1.0f, 1.0f};
+  math::Vector3f color2_{0.5f, 0.7, 1.0f};
 };
 
 #endif

@@ -23,7 +23,7 @@ public:
     BackgroundBase::Ptr background;
     int max_depth{50};
     int samples_per_pixel{100};
-    double max_sample_pert{0.5};
+    float max_sample_pert{0.5f};
 
     bool check() const {
       return (background != nullptr) && (max_depth > 0) &&
@@ -34,8 +34,8 @@ public:
   RayTracer(const Config &config) : config_{config} { assert(config_.check()); }
 
 public:
-  Eigen::Vector3d getRayColor(const Ray &ray, const HittableList &world,
-                              const int &depth) const;
+  math::Vector3f getRayColor(const Ray &ray, const HittableList &world,
+                             const int &depth) const;
 
   void render(const Camera &camera, const HittableList &world,
               std::ostream &out_stream);
@@ -46,21 +46,22 @@ public:
 
   void threadRendering(const Camera *camera, const HittableList *world,
                        const size_t &start_row, const size_t &num_rows,
-                       std::vector<std::vector<Eigen::Vector3d>> *row_buffers,
+                       std::vector<std::vector<math::Vector3f>> *row_buffers,
                        const size_t &idx);
 
   void threadPrintingProgressBar(
       const size_t &image_height, const size_t &image_width,
-      std::vector<std::vector<Eigen::Vector3d>> *row_buffers) {
+      std::vector<std::vector<math::Vector3f>> *row_buffers) {
 #ifdef VISUALIZE
     cv::Mat cv_img(image_height, image_width, CV_8UC3, cv::Scalar(0));
 #endif
     size_t num_finished_rows;
     const int bar_length = 100;
-    const Intervald intensity(0.000, 0.999);
+    const Intervalf intensity(0.000, 0.999);
     do {
-      num_finished_rows = nums_finished_rows_.sum();
-      const double progress = double(num_finished_rows) / image_height;
+      num_finished_rows = std::accumulate(nums_finished_rows_.begin(),
+                                          nums_finished_rows_.end(), 0UL);
+      const float progress = float(num_finished_rows) / image_height;
       std::clog << "\rRendering: [";
       for (int i = 0; i < progress * bar_length; ++i) {
         std::clog << "*";
@@ -74,13 +75,13 @@ public:
         for (size_t col = 0; col < image_width; ++col) {
           cv_img.at<cv::Vec3b>(row, col)[0] =
               uint8_t(256 * intensity.clamp(linearToGamma(
-                                row_buffers->at(row)[col].z(), 2.0)));
+                                row_buffers->at(row)[col].z(), 2.0f)));
           cv_img.at<cv::Vec3b>(row, col)[1] =
               uint8_t(256 * intensity.clamp(linearToGamma(
-                                row_buffers->at(row)[col].y(), 2.0)));
+                                row_buffers->at(row)[col].y(), 2.0f)));
           cv_img.at<cv::Vec3b>(row, col)[2] =
               uint8_t(256 * intensity.clamp(linearToGamma(
-                                row_buffers->at(row)[col].x(), 2.0)));
+                                row_buffers->at(row)[col].x(), 2.0f)));
         }
       }
       cv::imshow("rtweekend", cv_img);
@@ -97,7 +98,7 @@ private:
   Config config_;
 
   std::mutex mutex_;
-  Eigen::Matrix<size_t, Eigen::Dynamic, 1> nums_finished_rows_;
+  std::vector<uint64_t> nums_finished_rows_;
 };
 
 #endif // _RAY_TRACER_H_

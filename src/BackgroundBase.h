@@ -15,12 +15,12 @@ class BackgroundBase {
 public:
   typedef std::shared_ptr<BackgroundBase> Ptr;
 
-  virtual ~BackgroundBase() = default;
+  HOST_DEVICE_FUNC virtual ~BackgroundBase() = default;
 
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  
 
 public:
-  virtual Eigen::Vector3d getRayColor(const Ray &ray) const = 0;
+  virtual math::Vector3f getRayColor(const Ray &ray) const = 0;
 };
 
 #endif // _BACKGROUND_BASE_H_

@@ -12,11 +12,11 @@
 
 class HittableList : public HittableBase {
 public:
-  HittableList(const MaterialBase::Ptr &material = nullptr)
+  HittableList(const std::shared_ptr<MaterialBase> &material = nullptr)
       : HittableBase(material) {}
 
   HittableList(HittableBase::Ptr object,
-               const MaterialBase::Ptr &material = nullptr)
+               const std::shared_ptr<MaterialBase> &material = nullptr)
       : HittableBase(material) {}
 
   void clear() { objects_.clear(); }
@@ -29,7 +29,7 @@ public:
     return objects_[idx];
   }
 
-  virtual bool hit(const Ray &ray, const Intervald &interval,
+  virtual bool hit(const Ray &ray, const Intervalf &interval,
                    HitRecord &hit_record) const override;
 
 private:

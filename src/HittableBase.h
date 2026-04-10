@@ -8,7 +8,6 @@
 #ifndef _HITTABLE_BASE_H_
 #define _HITTABLE_BASE_H_
 
-#include "MaterialBase.h"
 #include "Ray.h"
 #include "utils.h"
 
@@ -17,13 +16,13 @@ class MaterialBase;
 
 struct HitRecord {
   Point3D p;
-  Eigen::Vector3d normal;
+  math::Vector3f normal;
   std::shared_ptr<MaterialBase> material;
-  double t;
+  float t;
   bool front_face;
 
-  void setFaceNormal(const Ray &ray, const Eigen::Vector3d &outward_normal) {
-    front_face = (ray.getDirection().dot(outward_normal) < 0);
+  void setFaceNormal(const Ray &ray, const math::Vector3f &outward_normal) {
+    front_face = (ray.getDirection().Dot(outward_normal) < 0);
     normal = front_face ? outward_normal : -outward_normal;
   }
 };
@@ -38,7 +37,7 @@ public:
 
   virtual ~HittableBase() = default;
 
-  virtual bool hit(const Ray &ray, const Intervald &interval,
+  virtual bool hit(const Ray &ray, const Intervalf &interval,
                    HitRecord &hit_record) const = 0;
 
   std::shared_ptr<MaterialBase> getMaterial() const { return material_; }
