@@ -1,5 +1,3 @@
-
-
 ![image-20260416234756568](/run/user/1000/doc/d1cfa431/cover.png)
 
 # Renderer
@@ -54,7 +52,7 @@ By default, the program uses the CPU to start 8 threads for rendering. Rendering
 
 ​	The output video will be like
 
-![](./figs/video.gif)
+![](figs/video.gif)
 
 #### Black Hole Rendering
 
@@ -70,15 +68,11 @@ By default, the program uses the CPU to start 8 threads for rendering. Rendering
 
 The outputs will be like: 
 
-![](./figs/black_hole_4k_1.png)
+![](figs/black_hole_4k_1.png)
 
-![](./figs/black_hole_4k_2.png)
+![](figs/black_hole_4k_2.png)
 
-![](./figs/black_hole_4k_3.png)
-
-<video>
-    <source src="./black_hole_2k_1.mp4" type="video/mp4">
-</video>
+![](figs/black_hole_4k_3.png)
 
 ## References
 
