@@ -23,7 +23,7 @@
 // namespace Eigen {
 
 typedef math::Matrix<uint8_t, 3, 1> Color;
-typedef math::Matrix<size_t, 2, 1> PixCoord;
+typedef math::Matrix<int32_t, 2, 1> PixCoord;
 typedef math::Vector3f Point3D;
 typedef math::Vector2f Point2D;
 

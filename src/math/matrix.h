@@ -1,10 +1,11 @@
 #pragma once
 
+#include <string.h>
+
 #include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <limits>
-#include <string.h>
 #include <type_traits>
 #include <vector>
 
@@ -12,35 +13,40 @@
 
 namespace math {
 
-template <typename DType, uint32_t M, uint32_t N> class Matrix {
+template <typename DType, uint32_t M, uint32_t N>
+class Matrix {
   static_assert(M > 0 && N > 0, "Size of a matrix must be positive. ");
 
-public:
-  HOST_DEVICE_FUNC Matrix() { SetZero(); }
+ public:
+  HOST_DEVICE_FUNC constexpr Matrix() { SetZero(); }
 
-  HOST_DEVICE_FUNC Matrix(DType const x) noexcept { data_[0] = x; }
+  HOST_DEVICE_FUNC constexpr Matrix(DType const x) noexcept { data_[0] = x; }
 
-  HOST_DEVICE_FUNC Matrix(DType const x, DType const y) noexcept {
+  HOST_DEVICE_FUNC constexpr Matrix(DType const x, DType const y) noexcept {
     static_assert(num_elems_ >= 2U, "");
     data_[0] = x;
     data_[1] = y;
   }
 
-  HOST_DEVICE_FUNC Matrix(DType const x, DType const y,
-                          DType const z) noexcept {
+  HOST_DEVICE_FUNC constexpr Matrix(DType const x, DType const y,
+                                    DType const z) noexcept {
     static_assert(num_elems_ >= 3U, "");
     data_[0] = x;
     data_[1] = y;
     data_[2] = z;
   }
 
-  HOST_DEVICE_FUNC Matrix(DType const w, DType const x, DType const y,
-                          DType const z) noexcept {
+  HOST_DEVICE_FUNC constexpr Matrix(DType const w, DType const x, DType const y,
+                                    DType const z) noexcept {
     static_assert(num_elems_ >= 4U, "");
     data_[3] = w;
     data_[0] = x;
     data_[1] = y;
     data_[2] = z;
+  }
+
+  HOST_DEVICE_FUNC constexpr Matrix(DType const *const data) noexcept {
+    memcpy(data_, data, sizeof(DType) * num_elems_);
   }
 
   HOST_DEVICE_FUNC static Matrix<DType, M, N> Zero() noexcept {
@@ -194,6 +200,12 @@ public:
     }
   }
 
+  HOST_DEVICE_FUNC void SetConstant(DType const scalar) {
+    for (uint32_t i{0U}; i < num_elems_; ++i) {
+      operator()(i) = scalar;
+    }
+  }
+
   HOST_DEVICE_FUNC DType Trace() const {
     DType trace{static_cast<DType>(0)};
     for (uint32_t i{0U}; i < fmin(M, N); ++i) {
@@ -212,8 +224,8 @@ public:
     return dot;
   }
 
-  HOST_DEVICE_FUNC Matrix<DType, M, N> &
-  operator+=(Matrix<DType, M, N> const &other) {
+  HOST_DEVICE_FUNC Matrix<DType, M, N> &operator+=(
+      Matrix<DType, M, N> const &other) {
     for (uint32_t i{0U}; i < num_elems_; ++i) {
       this->operator()(i) += other(i);
     }
@@ -221,8 +233,8 @@ public:
     return *this;
   }
 
-  HOST_DEVICE_FUNC Matrix<DType, M, N> &
-  operator-=(Matrix<DType, M, N> const &other) {
+  HOST_DEVICE_FUNC Matrix<DType, M, N> &operator-=(
+      Matrix<DType, M, N> const &other) {
     for (uint32_t i{0U}; i < num_elems_; ++i) {
       this->operator()(i) -= other(i);
     }
@@ -246,8 +258,8 @@ public:
     return *this;
   }
 
-  HOST_DEVICE_FUNC Matrix<DType, M, N>
-  CwiseProduct(Matrix<DType, M, N> const &other) const {
+  HOST_DEVICE_FUNC Matrix<DType, M, N> CwiseProduct(
+      Matrix<DType, M, N> const &other) const {
     Matrix<DType, M, N> ret{};
     for (uint32_t i{0U}; i < num_elems_; ++i) {
       ret(i) = this->operator()(i) * other(i);
@@ -256,8 +268,8 @@ public:
     return ret;
   }
 
-  HOST_DEVICE_FUNC Matrix<DType, M, N>
-  Cross(Matrix<DType, M, N> const &other) const {
+  HOST_DEVICE_FUNC Matrix<DType, M, N> Cross(
+      Matrix<DType, M, N> const &other) const {
     static_assert((M == 3U && N == 1U) || (M == 1U && N == 3U));
     Matrix<DType, M, N> cross{};
     cross.x() = -z() * other.y() + y() * other.z();
@@ -267,7 +279,7 @@ public:
     return cross;
   }
 
-protected:
+ protected:
   DType data_[M * N]{static_cast<DType>(0)};
   static uint32_t constexpr rows_{M};
   static uint32_t constexpr cols_{N};
@@ -402,7 +414,11 @@ typedef Matrix<float, 3, 3> Matrix3f;
 typedef Matrix<double, 3, 3> Matrix3d;
 typedef Matrix<float, 6, 1> Vector6f;
 typedef Matrix<double, 6, 1> Vector6d;
+typedef Matrix<float, 7, 1> Vector7f;
+typedef Matrix<double, 7, 1> Vector7d;
+typedef Matrix<float, 8, 1> Vector8f;
+typedef Matrix<double, 8, 1> Vector8d;
 typedef Matrix<float, 6, 6> Matrix6f;
 typedef Matrix<double, 6, 6> Matrix6d;
 
-} // namespace math
+}  // namespace math

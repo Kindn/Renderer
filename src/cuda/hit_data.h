@@ -18,6 +18,14 @@ struct HitRecordCuda {
   void *material_property{nullptr};
   float t{};
   bool front_face{};
+  math::Vector3f color{};
+  math::Vector3f emitted{};
+  math::Vector3f final_dir{};
+  bool is_light_source{false};
+  bool is_event_horizon{false};
+  bool scattered{};
+  //* Used for ray marching
+  math::Vector3f ray_color{};
 
   HOST_DEVICE_FUNC void SetFaceNormal(const Ray *const ray,
                                       const math::Vector3f &outward_normal) {

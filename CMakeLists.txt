@@ -5,10 +5,10 @@ project(renderer LANGUAGES CXX)
 set(USE_CUDA ON)
 set(VISUALIZE ON)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-O3 -std=c++17 -pthread")
+set(CMAKE_BUILD_TYPE "Debug")
+set(CMAKE_CXX_FLAGS "-O3 -std=c++14 -pthread")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g -march=native")
 
 set(EIGEN3_INCLUDE_DIRS "/usr/include/eigen3")
@@ -34,8 +34,8 @@ if(USE_CUDA)
         message(STATUS "CUDA_LIBRARY_DIRS: ${CUDA_LIBRARY_DIRS}")
 
         include_directories(${CUDA_INCLUDE_DIRS})
-        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O3 -arch=sm_70 --ptxas-options=-v --maxrregcount=40 -lineinfo")
-        set(CMAKE_CUDA_ARCHITECTURES 70-real)
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O3 -gencode arch=compute_75,code=sm_75 --ptxas-options=-v --maxrregcount=64 -lineinfo")
+        set(CMAKE_CUDA_ARCHITECTURES 75-real)
         set(CMAKE_CUDA_COMPILER ${CUDA_TOOLKIT_ROOT_DIR}/bin/nvcc)
 
         enable_language(CUDA)
@@ -84,9 +84,11 @@ if(USE_CUDA)
     set(RENDERER_SRC ${RENDERER_SRC}
         src/cuda/materials.cu
         src/cuda/hittables.cu
+        src/cuda/bhlite.cu
         src/cuda/camera.cu
         src/cuda/rendering.cu
         src/cuda/background.cu
+        src/cuda/post_processing.cu
         src/cuda/utils/common.cpp
     )
     set(RENDERER_DEPEND_LIBS ${RENDERER_DEPEND_LIBS}
@@ -133,3 +135,9 @@ target_link_libraries(rtweekend_cuda renderer ${RENDERER_DEPEND_LIBS} ${OpenCV_L
 
 add_executable(video_generator video_generator.cpp)
 target_link_libraries(video_generator renderer ${RENDERER_DEPEND_LIBS} ${OpenCV_LIBRARIES})
+
+add_executable(blackhole_rendering blackhole_rendering.cpp)
+target_link_libraries(blackhole_rendering renderer ${RENDERER_DEPEND_LIBS} ${OpenCV_LIBRARIES})
+
+add_executable(realtime_blackhole_rendering realtime_blackhole_rendering.cpp)
+target_link_libraries(realtime_blackhole_rendering renderer ${RENDERER_DEPEND_LIBS} ${OpenCV_LIBRARIES})

@@ -184,7 +184,8 @@ get_inverse_transform(DType const *const transform,
 template <typename DType>
 INLINE_HOST_DEVICE_FUNC DType clamp(DType const x, DType const lb,
                                                 DType const ub) {
-  return fmin(ub, fmax(lb, x));
+  // return fmin(ub, fmax(lb, x));
+  return x < ub ? (x > lb ? x : lb) : ub;
 }
 
 template <typename DType>

@@ -2,6 +2,9 @@
 
 #include "cuda/materials.h"
 #include "cuda/utils/common.h"
+#include "cuda/utils/math.h"
+#include "geometry/polyhedrons.h"
+#include "math/ode_solvers.h"
 
 namespace cuda {
 
@@ -35,6 +38,98 @@ class Sphere {
   float radius_{0.2f};
   MaterialType material_type_{MaterialType::MATERIAL_LAMBERTIAN};
   void *material_property_{nullptr};
+};
+
+class BlackHole {
+ public:
+  enum AccretionDiskTextureType { TRANSMISSION_PROBABILITY, PARTICLE_DENSITY };
+
+  struct HostAccretionDiskTexture {
+    float *h__texture{};
+    uint32_t rows{};
+    uint32_t cols{};
+    AccretionDiskTextureType type{
+        AccretionDiskTextureType::TRANSMISSION_PROBABILITY};
+  };
+
+  struct Config {
+    /* Position of the singularity */
+    math::Vector3f position{};
+    /* Rotation of the accretion disk */
+    math::Quaternionf rotation{};
+    /* The Schwarszchild radius */
+    float sr{1.0f};
+    /* Inner radius of the accretion disk */
+    float inner_disk_radius{1.2f};
+    /* Inner radius of the accretion disk */
+    float outer_disk_radius{2.5f};
+    /* Attentuation of the accretion disk */
+    math::Vector3f disk_attenuation{};
+    /* Emission of the accretion disk */
+    math::Vector3f disk_emission{};
+    /* Thickness of the accretion disk */
+    float disk_thickness{0.01f};
+    /* The maximum range of effect of consideration */
+    float max_eff_range{100.0f};
+    /* Scaling factor of brightness relative to particle density. Only enabled
+     * when texture type is PARTICLE_DENSITY */
+    float brightness_scale{2.0f};
+
+    INLINE_HOST_DEVICE_FUNC bool Check() const {
+      return sr > 0.0f && inner_disk_radius > 0.0f &&
+             outer_disk_radius > 0.0f && outer_disk_radius > inner_disk_radius;
+    }
+  };
+
+  explicit BlackHole(
+      Config const &config,
+      HostAccretionDiskTexture const &host_acc_disk_tex) noexcept;
+
+  DEVICE_FUNC bool Hit(Ray const &ray, Intervalf const &interval,
+                       HitRecordCuda &hit_record) const noexcept;
+
+  HOST_DEVICE_FUNC Config const &config() const { return config_; }
+
+  void Release();
+
+  INLINE_HOST_DEVICE_FUNC float GetDistToSphereBoundary(
+      math::Vector3f const &origin) const noexcept {
+    return (origin - config_.position).Norm() - config_.outer_disk_radius;
+  }
+
+ private:
+  DEVICE_FUNC bool HitEventHorizon(Ray const &ray,
+                                   Intervalf const &interval) const;
+
+  DEVICE_FUNC bool HitEventHorizon(Ray const &ray, Intervalf const &interval,
+                                   float &t, math::Vector3f &p,
+                                   math::Vector3f &outer_normal) const;
+
+  DEVICE_FUNC bool HitAccretionDisk(Ray const &ray, Intervalf const &interval,
+                                    float &t, math::Vector3f &p,
+                                    math::Vector3f &outer_normal,
+                                    float &tex_value, float &r_xy) const;
+
+  void UploadTexture(HostAccretionDiskTexture const host_acc_disk_tex);
+
+ private:
+  struct DeviceAccretionDiskTexture {
+    cudaArray_t d__tex_arr{};
+    cudaTextureObject_t d__tex{};
+    uint32_t rows{};
+    uint32_t cols{};
+    AccretionDiskTextureType type{
+        AccretionDiskTextureType::TRANSMISSION_PROBABILITY};
+  };
+
+  Config config_{};
+  math::Vector3f disk_normal_{};
+  math::Vector3f origin_top_surface_{};
+  math::Vector3f origin_bottom_surface_{};
+  float odr2_{};
+  float idr2_{};
+  float half_disk_thickness_{};
+  DeviceAccretionDiskTexture device_acc_disk_tex_{};
 };
 
 class HostHittableList {
@@ -87,13 +182,13 @@ class DeviceHittableList {
   //! Only used by host functions
   class MaterialInfoVec {
    public:
-    HOST_DEVICE_FUNC MaterialInfoVec() {};
+    HOST_DEVICE_FUNC MaterialInfoVec(){};
 
     MaterialInfoVec(std::vector<MaterialInfo> const &v) {
       if (!v.empty()) {
         uint64_t const buffer_size{v.size() * sizeof(MaterialInfo)};
         data_ = (MaterialInfo *)malloc(buffer_size);
-        assert(nullptr != data_);
+        // assert(nullptr != data_);
         memcpy(data_, v.data(), buffer_size);
         size_ = v.size();
       }
@@ -131,6 +226,112 @@ class DeviceHittableList {
 
   Objects objects_{};
   ObjectMemoryInfo obj_mem_info_{};
+};
+
+class SchwarzschildGeodesicFunctor {
+ public:
+  typedef math::Vector6f State;
+  struct Config {
+    float sr{1.0f};
+    math::Vector3f position{0.0f, 0.0f, 0.0f};
+
+    INLINE_HOST_DEVICE_FUNC bool Check() const { return sr > 0.0f; }
+  };
+
+  HOST_DEVICE_FUNC explicit SchwarzschildGeodesicFunctor(
+      Config const &config) noexcept;
+
+  HOST_DEVICE_FUNC State operator()(float const t,
+                                    State const &x0) const noexcept;
+
+  HOST_DEVICE_FUNC void SetAngularMomentum(Ray const &ray) noexcept;
+
+  HOST_DEVICE_FUNC void SetAngularMomentum(float const am) noexcept {
+    am_ = am;
+    am2_ = am_ * am_;
+  }
+
+ private:
+  Config config_{};
+  float am_{};
+  float am2_{};
+};
+
+struct SchwarzschildSpaceCameraPrior {
+  math::Vector3f position{};
+  math::Quaternionf rotation{};
+  float nearest_obj_boundary_dist{0.0f};
+};
+
+class HostSchwarzschildSpace {
+ public:
+  struct Objects {
+    std::vector<BlackHole> black_holes{};
+  };
+
+  HostSchwarzschildSpace() = default;
+
+  void Release();
+
+  Objects const &objects() const noexcept { return objects_; }
+
+  Objects &objects() noexcept { return objects_; }
+
+  SchwarzschildSpaceCameraPrior GetCameraPrior(
+      math::Vector3f const &camera_position,
+      math::Quaternionf const &camera_rotation) const noexcept;
+
+ private:
+  Objects objects_{};
+};
+
+class DeviceSchwarzschildSpace {
+ public:
+  struct Config {
+    float max_marching_time{100.0f};
+
+    HOST_DEVICE_FUNC bool Check() const { return max_marching_time >= 0.0f; }
+  };
+
+  struct Objects {
+    uint64_t num_black_holes{};
+    BlackHole *d__black_holes{};
+    SchwarzschildGeodesicFunctor *d__geodesics{};
+  };
+
+  DeviceSchwarzschildSpace(Config const &config) noexcept : config_{config} {
+    // assert(config_.Check());
+  }
+
+  bool Upload(HostSchwarzschildSpace const &host);
+
+  void Release();
+
+  DEVICE_FUNC bool Hit(Ray const &ray, Intervalf const &interval,
+                       HitRecordCuda &hit_record) const noexcept;
+
+  DEVICE_FUNC bool Hit(Ray const &ray, Intervalf const &interval,
+                       float const *const __restrict__ r_list,
+                       float *const smem_h2_map,
+                       HitRecordCuda &hit_record) const noexcept;
+
+  INLINE_HOST_DEVICE_FUNC Objects const &objects() const { return objects_; }
+
+  INLINE_HOST_DEVICE_FUNC Objects &objects() { return objects_; }
+
+  INLINE_HOST_DEVICE_FUNC void SetCameraPrior(
+      SchwarzschildSpaceCameraPrior const &camera_prior) noexcept {
+    camera_prior_ = camera_prior;
+  }
+
+ private:
+  DEVICE_FUNC bool HitBlackHoles(Ray const &ray, Intervalf const &interval,
+                                 HitRecordCuda &hit_record) const noexcept;
+
+ private:
+  Config config_{};
+  Objects objects_{};
+  SchwarzschildSpaceCameraPrior camera_prior_{};
 };
 
 }  // namespace cuda

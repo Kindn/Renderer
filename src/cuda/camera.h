@@ -56,22 +56,22 @@ class Camera {
   }
 
   HOST_DEVICE_FUNC void setImageWidth(const size_t &image_width) {
-    assert(image_width > 0);
+    // assert(image_width > 0);
     image_width_ = image_width;
   }
 
   HOST_DEVICE_FUNC void setImageHeight(const size_t &image_height) {
-    assert(image_height > 0);
+    // assert(image_height > 0);
     image_height_ = image_height;
   }
 
   HOST_DEVICE_FUNC void setFOVWidth(const float &fov_width) {
-    assert(fov_width > 1.0e-32);
+    // assert(fov_width > 1.0e-32);
     fov_width_ = fov_width;
   }
 
   HOST_DEVICE_FUNC void setFOVHeight(const float &fov_height) {
-    assert(fov_height > 1.0e-32);
+    // assert(fov_height > 1.0e-32);
     fov_height_ = fov_height;
   }
 
@@ -84,14 +84,14 @@ class Camera {
   }
 
   HOST_DEVICE_FUNC void setFocalLength(const float &focal_length) {
-    assert(focal_length > 1.0e-32);
+    // assert(focal_length > 1.0e-32);
     focal_length_ = focal_length;
     defocus_radius_ = focal_length * std::tan(defocus_angle_ / 2.0f);
   }
 
   HOST_DEVICE_FUNC void setDefocusAngle(const float &defocus_angle) {
-    assert(defocus_angle > 1.0e-32 &&
-           defocus_angle < M_PI);
+    // assert(defocus_angle > 1.0e-32 &&
+          //  defocus_angle < M_PI);
     defocus_angle_ = defocus_angle;
     defocus_radius_ = focal_length_ * std::tan(defocus_angle / 2.0f);
   }

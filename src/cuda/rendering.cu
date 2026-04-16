@@ -41,13 +41,13 @@ __global__ void ray_tracing_kernal(Camera const camera,
                                    uint64_t const image_height,
                                    RayTracerConfig const config,
                                    uint8_t *const rendered_image) {
-  uint64_t const u{blockIdx.x * blockDim.x + threadIdx.x};
-  uint64_t const v{blockIdx.y * blockDim.y + threadIdx.y};
+  uint32_t const u{blockIdx.x * blockDim.x + threadIdx.x};
+  uint32_t const v{blockIdx.y * blockDim.y + threadIdx.y};
   if (u >= image_width || v >= image_height) {
     return;
   }
 
-  uint64_t const pix_idx{u + v * image_width};
+  uint32_t const pix_idx{static_cast<uint32_t>(u + v * image_width)};
   uint8_t *const pixel{rendered_image + pix_idx * 3UL};
   utils::RandomNumberGenerator rendering_rng{pix_idx * 2654435761UL};
   utils::RandomNumberGenerator camera_rng{pix_idx * 3784435761UL};
@@ -57,8 +57,8 @@ __global__ void ray_tracing_kernal(Camera const camera,
     // Ray const ray{camera.getDefocusPerturbedRay(
     //     PixCoord(u, v), config.max_sample_pert, &camera_rng)};
     math::Vector3f const dir{camera.getRotation() *
-                           camera.getPerturbedPixelCameraCoordinate(
-                               {u, v}, config.max_sample_pert, &camera_rng)};
+                             camera.getPerturbedPixelCameraCoordinate(
+                                 {u, v}, config.max_sample_pert, &camera_rng)};
     Ray const ray{camera.getPosition(), dir};
     color += get_ray_color(ray, world, config.max_depth, &rendering_rng,
                            &back_ground);
@@ -88,13 +88,13 @@ __global__ void ray_tracing_using_smem_kernal(
   shared_world.objects().d__sphere = smem_spheres;
   shared_world.objects().num_spheres = world.objects().num_spheres;
 
-  uint64_t const u{blockIdx.x * blockDim.x + threadIdx.x};
-  uint64_t const v{blockIdx.y * blockDim.y + threadIdx.y};
+  uint32_t const u{blockIdx.x * blockDim.x + threadIdx.x};
+  uint32_t const v{blockIdx.y * blockDim.y + threadIdx.y};
   if (u >= image_width || v >= image_height) {
     return;
   }
 
-  uint64_t const pix_idx{u + v * image_width};
+  uint32_t const pix_idx{static_cast<uint32_t>(u + v * image_width)};
   uint8_t *const pixel{rendered_image + pix_idx * 3UL};
   utils::RandomNumberGenerator rendering_rng{pix_idx * 2654435761UL};
   utils::RandomNumberGenerator camera_rng{pix_idx * 3784435761UL};
@@ -104,8 +104,8 @@ __global__ void ray_tracing_using_smem_kernal(
     // Ray const ray{camera.getDefocusPerturbedRay(
     //     PixCoord(u, v), config.max_sample_pert, &camera_rng)};
     math::Vector3f const dir{camera.getRotation() *
-                           camera.getPerturbedPixelCameraCoordinate(
-                               {u, v}, config.max_sample_pert, &camera_rng)};
+                             camera.getPerturbedPixelCameraCoordinate(
+                                 {u, v}, config.max_sample_pert, &camera_rng)};
     Ray const ray{camera.getPosition(), dir};
     color += get_ray_color(ray, shared_world, config.max_depth, &rendering_rng,
                            &back_ground);
@@ -124,16 +124,17 @@ __global__ void ray_sampling_kernal(Camera const camera,
                                     uint64_t const image_height,
                                     RayTracerConfig const config,
                                     float *const sampled_ray_map) {
-  uint64_t const u{blockIdx.x * blockDim.x + threadIdx.x};
-  uint64_t const v{blockIdx.y * blockDim.y + threadIdx.y};
-  uint64_t const s{blockIdx.z * blockDim.z + threadIdx.z};
+  uint32_t const u{blockIdx.x * blockDim.x + threadIdx.x};
+  uint32_t const v{blockIdx.y * blockDim.y + threadIdx.y};
+  uint32_t const s{blockIdx.z * blockDim.z + threadIdx.z};
   if (u >= image_width || v >= image_height || s >= config.samples_per_pixel) {
     return;
   }
 
   // TODO Support defocus sampling
-  uint64_t const ray_idx{s + v * config.samples_per_pixel +
-                         u * config.samples_per_pixel * image_height};
+  uint32_t const ray_idx{
+      static_cast<uint32_t>(s + v * config.samples_per_pixel +
+                            u * config.samples_per_pixel * image_height)};
   utils::RandomNumberGenerator rng{ray_idx * 3784435761UL};
   math::Vector3f const dir{camera.getRotation() *
                            camera.getPerturbedPixelCameraCoordinate(
@@ -198,6 +199,182 @@ __global__ void color_blending_kernal(uint64_t const image_width,
       256.0f * intensity.clamp(linearToGamma(color.x(), 2.0f)), 0.0f, 255.0f));
 }
 
+DEVICE_FUNC math::Vector3f get_ray_color(
+    Ray const &ray, DeviceSchwarzschildSpace const &world, int32_t const depth,
+    utils::RandomNumberGenerator *const rng,
+    HdriSkyBackground const *const background) {
+  if (depth <= 0) {
+    return math::Vector3f::Zero();
+  }
+
+  float const inff{INFINITY};
+  HitRecordCuda hit_record{};
+  Ray curr_ray{ray};
+  math::Vector3f color{1.0f, 1.0f, 1.0f};
+  math::Vector3f *attenuation_list{new math::Vector3f[depth + 1]};
+  math::Vector3f *emitted_list{new math::Vector3f[depth + 1]};
+  int32_t d{0};
+  for (; d < depth; ++d) {
+    if (world.Hit(curr_ray, Intervalf{0.001f, inff}, hit_record)) {
+      attenuation_list[d] = hit_record.color;
+      emitted_list[d] = hit_record.emitted;
+      if (!hit_record.scattered) {
+        break;
+      }
+      if (depth - 1 == d) {
+        ++d;
+        attenuation_list[d].SetZero();
+        emitted_list[d] =
+            background->GetRayColor(Ray({}, hit_record.final_dir));
+      }
+      curr_ray.setOrigin(hit_record.p);
+      curr_ray.setDirection(hit_record.final_dir);
+    } else {
+      attenuation_list[d].SetZero();
+      emitted_list[d] = background->GetRayColor(Ray({}, hit_record.final_dir));
+      break;
+    }
+  }
+
+  for (; d >= 0; --d) {
+    color = emitted_list[d] + attenuation_list[d].CwiseProduct(color);
+  }
+
+  // if (world.Hit(ray, Intervalf{0.001f, inff}, hit_record)) {
+  //   return hit_record.color;
+  // }
+
+  delete[] attenuation_list;
+  delete[] emitted_list;
+
+  return color;
+}
+
+DEVICE_FUNC math::Vector3f get_ray_color(
+    Ray const &ray, DeviceSchwarzschildSpace const &world,
+    HdriSkyBackground const *const background, float const *const r_list,
+    float *const smem_h2_map) {
+  float const inff{INFINITY};
+  Intervalf const interval{1.0e-8f, inff};
+  HitRecordCuda hit_record{};
+  math::Vector3f color{1.0f, 1.0f, 1.0f};
+  bool const hit_anything{
+      world.Hit(ray, interval, r_list, smem_h2_map, hit_record)};
+  if (hit_record.is_event_horizon) {
+    color = hit_record.emitted;
+  } else {
+    color = hit_record.emitted +
+            hit_record.color.CwiseProduct(background->GetRayColor(
+                Ray{hit_record.p, hit_record.final_dir}));
+  }
+
+  return color;
+}
+
+__global__ void ray_tracing_kernal(Camera const camera,
+                                   DeviceSchwarzschildSpace const world,
+                                   HdriSkyBackground const back_ground,
+                                   uint64_t const image_width,
+                                   uint64_t const image_height,
+                                   RayTracerConfig const config,
+                                   uint8_t *const rendered_image) {
+  uint64_t const u{blockIdx.x * blockDim.x + threadIdx.x};
+  uint64_t const v{blockIdx.y * blockDim.y + threadIdx.y};
+  if (u >= image_width || v >= image_height) {
+    return;
+  }
+
+  uint64_t const pix_idx{u + v * image_width};
+  uint8_t *const pixel{rendered_image + pix_idx * 3UL};
+  utils::RandomNumberGenerator rendering_rng{pix_idx * 2654435761UL};
+  utils::RandomNumberGenerator camera_rng{pix_idx * 3784435761UL};
+  Intervalf const intensity{0.000f, 0.999f};
+  math::Vector3f color{0.0f, 0.0f, 0.0f};
+  for (int32_t i{0}; i < config.samples_per_pixel; ++i) {
+    Ray const ray{camera.getDefocusPerturbedRay(
+        PixCoord(u, v), config.max_sample_pert, &camera_rng)};
+    // math::Vector3f const dir{camera.getRotation() *
+    //                          camera.getPerturbedPixelCameraCoordinate(
+    //                              {u, v}, config.max_sample_pert,
+    //                              &camera_rng)};
+    // Ray const ray{camera.getPosition(), dir};
+    color += get_ray_color(ray, world, config.max_depth, &rendering_rng,
+                           &back_ground);
+  }
+  color /= config.samples_per_pixel;
+  pixel[0] = static_cast<uint8_t>(utils::clamp<float>(
+      256.0f * intensity.clamp(linearToGamma(color.z(), 2.0f)), 0.0f, 255.0f));
+  pixel[1] = static_cast<uint8_t>(utils::clamp<float>(
+      256.0f * intensity.clamp(linearToGamma(color.y(), 2.0f)), 0.0f, 255.0f));
+  pixel[2] = static_cast<uint8_t>(utils::clamp<float>(
+      256.0f * intensity.clamp(linearToGamma(color.x(), 2.0f)), 0.0f, 255.0f));
+}
+
+__global__ void ray_tracing_kernal(
+    Camera const camera, DeviceSchwarzschildSpace const world,
+    HdriSkyBackground const back_ground, uint64_t const image_width,
+    uint64_t const image_height, RayTracerConfig const config,
+    float const *const r_list, uint8_t *const rendered_image) {
+  extern __shared__ float h2_map[];
+
+  uint64_t const u{blockIdx.x * blockDim.x + threadIdx.x};
+  uint64_t const v{blockIdx.y * blockDim.y + threadIdx.y};
+  if (u >= image_width || v >= image_height) {
+    return;
+  }
+
+  uint64_t const pix_idx{u + v * image_width};
+  uint8_t *const pixel{rendered_image + pix_idx * 3UL};
+  utils::RandomNumberGenerator rendering_rng{pix_idx * 2654435761UL};
+  utils::RandomNumberGenerator camera_rng{pix_idx * 3784435761UL};
+  Intervalf intensity{0.000f, 0.999f};
+  math::Vector3f color{0.0f, 0.0f, 0.0f};
+  for (int32_t i{0}; i < config.samples_per_pixel; ++i) {
+    Ray const ray{camera.getDefocusPerturbedRay(
+        PixCoord(u, v), config.max_sample_pert, &camera_rng)};
+    // math::Vector3f const dir{camera.getRotation() *
+    //                          camera.getPerturbedPixelCameraCoordinate(
+    //                              {u, v}, config.max_sample_pert,
+    //                              &camera_rng)};
+    // Ray const ray{camera.getPosition(), dir};
+    color += get_ray_color(ray, world, &back_ground, r_list, h2_map);
+  }
+  color /= config.samples_per_pixel;
+  pixel[0] = static_cast<uint8_t>(utils::clamp<float>(
+      256.0f * intensity.clamp(linearToGamma(color.z(), 2.0f)), 0.0f, 255.0f));
+  pixel[1] = static_cast<uint8_t>(utils::clamp<float>(
+      256.0f * intensity.clamp(linearToGamma(color.y(), 2.0f)), 0.0f, 255.0f));
+  pixel[2] = static_cast<uint8_t>(utils::clamp<float>(
+      256.0f * intensity.clamp(linearToGamma(color.x(), 2.0f)), 0.0f, 255.0f));
+}
+
+__global__ void ray_tracing_kernal(
+    Camera const camera, DeviceSchwarzschildSpace const world,
+    HdriSkyBackground const back_ground, uint64_t const image_width,
+    uint64_t const image_height, RayTracerConfig const config,
+    float const *const r_list, float *const rendered_hdr_image) {
+  extern __shared__ float h2_map[];
+
+  uint64_t const u{blockIdx.x * blockDim.x + threadIdx.x};
+  uint64_t const v{blockIdx.y * blockDim.y + threadIdx.y};
+  if (u >= image_width || v >= image_height) {
+    return;
+  }
+
+  uint64_t const pix_idx{u + v * image_width};
+  float *const pixel{rendered_hdr_image + pix_idx * 3UL};
+  utils::RandomNumberGenerator rendering_rng{pix_idx * 2654435761UL};
+  utils::RandomNumberGenerator camera_rng{pix_idx * 3784435761UL};
+  math::Vector3f color{0.0f, 0.0f, 0.0f};
+  for (int32_t i{0}; i < config.samples_per_pixel; ++i) {
+    Ray const ray{camera.getDefocusPerturbedRay(
+        PixCoord(u, v), config.max_sample_pert, &camera_rng)};
+    color += get_ray_color(ray, world, &back_ground, r_list, h2_map);
+  }
+  color /= config.samples_per_pixel;
+  memcpy(pixel, color.data(), sizeof(float) * 3UL);
+}
+
 void render(Camera const &camera, DeviceHittableList const &world,
             RayTracerConfig const &config,
             SimpleSkyBackground const back_ground, uint64_t const image_width,
@@ -255,6 +432,67 @@ void render2(Camera const &camera, DeviceHittableList const &world,
 
   CUDA_CHECK(cudaFree(d__ray_map));
   CUDA_CHECK(cudaFree(d__color_map));
+}
+
+void render(Camera const &camera, DeviceSchwarzschildSpace const &world,
+            RayTracerConfig const &config, HdriSkyBackground const back_ground,
+            uint64_t const image_width, uint64_t const image_height,
+            uint8_t *const d__rendered_image) {
+  dim3 const block_dim{BLOCK_DIM_X, BLOCK_DIM_Y};
+  dim3 const grid_dim{GRID_DIM(image_width, block_dim.x),
+                      GRID_DIM(image_height, block_dim.y)};
+  // std::cout << "Start rendering " << image_width << "x" << image_height
+  // << std::endl;
+  ray_tracing_kernal<<<grid_dim, block_dim>>>(camera, world, back_ground,
+                                              image_width, image_height, config,
+                                              d__rendered_image);
+  CUDA_CHECK(cudaDeviceSynchronize());
+  // std::cout << "Rendering done. " << std::endl;
+}
+
+void render2(Camera const &camera, HostSchwarzschildSpace const &host_world,
+             DeviceSchwarzschildSpace const &device_world,
+             RayTracerConfig const &config, HdriSkyBackground const back_ground,
+             uint64_t const image_width, uint64_t const image_height,
+             std::shared_ptr<Bloom> const &bloom,
+             uint8_t *const d__rendered_image) {
+  assert(nullptr != bloom);
+
+  uint64_t const num_blackholes{host_world.objects().black_holes.size()};
+  assert(num_blackholes == device_world.objects().num_black_holes);
+  float *const h__r_list{new float[num_blackholes * 4UL]};
+  for (uint64 i{0UL}; i < num_blackholes; ++i) {
+    math::Vector3f const r{
+        camera.getPosition() -
+        host_world.objects().black_holes.at(i).config().position};
+    memcpy(h__r_list + i * 4UL, r.data(), sizeof(float) * 3UL);
+    h__r_list[i * 4UL + 3UL] = r.Norm();
+  }
+  float *d__r_list{};
+  float *d__hdr_image{};
+  CUDA_CHECK(
+      cudaMalloc((void **)&d__r_list, sizeof(float) * num_blackholes * 4UL));
+  CUDA_CHECK(cudaMalloc((void **)&d__hdr_image,
+                        sizeof(float) * image_width * image_height * 3UL));
+  CUDA_CHECK(cudaMemcpy(d__r_list, h__r_list,
+                        sizeof(float) * num_blackholes * 4UL,
+                        cudaMemcpyHostToDevice));
+
+  dim3 const block_dim{BLOCK_DIM_X, BLOCK_DIM_Y};
+  dim3 const grid_dim{GRID_DIM(image_width, block_dim.x),
+                      GRID_DIM(image_height, block_dim.y)};
+  uint64_t const smem_size{sizeof(float) * BLOCK_SIZE * num_blackholes};
+  // ray_tracing_kernal<<<grid_dim, block_dim, smem_size>>>(
+  //     camera, device_world, back_ground, image_width, image_height, config,
+  //     d__r_list, d__rendered_image);
+  ray_tracing_kernal<<<grid_dim, block_dim, smem_size>>>(
+      camera, device_world, back_ground, image_width, image_height, config,
+      d__r_list, d__hdr_image);
+  bloom->Apply(d__hdr_image, d__rendered_image);
+  CUDA_CHECK(cudaDeviceSynchronize());
+
+  CUDA_CHECK(cudaFree(d__r_list));
+  CUDA_CHECK(cudaFree(d__hdr_image));
 }
 
 }  // namespace cuda

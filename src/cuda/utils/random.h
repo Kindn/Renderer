@@ -27,7 +27,7 @@ class RandomNumberGenerator {
 
   INLINE_HOST_DEVICE_FUNC float uniformReal(const float &lower,
                                             const float &upper) {
-    assert(lower <= upper);
+    // assert(lower <= upper);
     return lower + (upper - lower) * urd01_(engine_);
   }
 

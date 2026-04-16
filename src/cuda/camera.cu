@@ -72,7 +72,7 @@ HOST_DEVICE_FUNC Ray Camera::getDefocusPerturbedRay(
       getPerturbedPixelCameraCoordinate(pixel_coordinate, max_perturb, rng);
   const math::Vector3f origin = defocusDiskSample(rng);
   const math::Vector3f direction = position_ + rotation_ * pix_c - origin;
-  return Ray(origin, direction);
+  return Ray(origin, direction.Normalized());
 }
 
 }  // namespace cuda

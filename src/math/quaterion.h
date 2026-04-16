@@ -4,9 +4,8 @@
 
 namespace math {
 
-template <typename DType>
-class Quaternion : public Matrix<DType, 4U, 1U> {
- public:
+template <typename DType> class Quaternion : public Matrix<DType, 4U, 1U> {
+public:
   HOST_DEVICE_FUNC Quaternion()
       : Matrix<DType, 4U, 1U>(static_cast<DType>(1), static_cast<DType>(0),
                               static_cast<DType>(0), static_cast<DType>(0)) {}
@@ -99,7 +98,12 @@ class Quaternion : public Matrix<DType, 4U, 1U> {
     this->w() = static_cast<DType>(1);
   }
 
-  HOST_DEVICE_FUNC Quaternion<DType> operator*(Quaternion<DType> const &other) {
+  HOST_DEVICE_FUNC Quaternion<DType> Conjugated() const {
+    return Quaternion<DType>(this->w(), -this->x(), -this->y(), -this->z());
+  }
+
+  HOST_DEVICE_FUNC Quaternion<DType>
+  operator*(Quaternion<DType> const &other) const {
     return Quaternion<DType>(this->w() * other.w() - this->x() * other.x() -
                                  this->y() * other.y() - this->z() * other.z(),
                              this->x() * other.w() + this->w() * other.x() -
@@ -110,8 +114,8 @@ class Quaternion : public Matrix<DType, 4U, 1U> {
                                  this->x() * other.y() + this->w() * other.z());
   }
 
-  HOST_DEVICE_FUNC Matrix<DType, 3U, 1U> operator*(
-      Matrix<DType, 3U, 1U> const &v) const {
+  HOST_DEVICE_FUNC Matrix<DType, 3U, 1U>
+  operator*(Matrix<DType, 3U, 1U> const &v) const {
     return ToRotationMatrix() * v;
   }
 };
@@ -125,4 +129,4 @@ std::ostream &operator<<(std::ostream &os, Quaternion<DType> const &q) {
 typedef Quaternion<float> Quaternionf;
 typedef Quaternion<double> Quaterniond;
 
-}  // namespace math
+} // namespace math

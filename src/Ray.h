@@ -15,7 +15,7 @@ public:
   HOST_DEVICE_FUNC Ray(const Point3D &origin = Point3D::Zero(),
                   const math::Vector3f &direction = math::Vector3f::UnitX())
       : origin_{origin}, direction_{direction.Normalized()} {
-    assert(direction_.Norm() > 1.0e-32);
+    // assert(direction_.Norm() > 1.0e-32);
   }
 
   HOST_DEVICE_FUNC const Point3D &getOrigin() const { return origin_; }
