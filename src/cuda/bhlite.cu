@@ -48,8 +48,10 @@ INLINE_DEVICE_FUNC void apply_accretion_disk_color(
 INLINE_DEVICE_FUNC bool get_ray_color(Ray const &ray,
                                       HdriSkyBackground const back_ground,
                                       cudaTextureObject_t acc_disk_tex,
+                                      utils::RandomNumberGenerator *const rng,
                                       math::Vector3f &color) {
   float constexpr kStep{0.1f};
+  float constexpr kMinStep{0.0001f};
   uint32_t constexpr kMaxNumSteps{1000U};
 
   math::Vector3f curr_pos{ray.getOrigin()};
@@ -57,8 +59,15 @@ INLINE_DEVICE_FUNC bool get_ray_color(Ray const &ray,
   float const h2{curr_pos.Cross(curr_dir).SquaredNorm()};
   color.SetZero();
   for (uint32_t i{0U}; i < kMaxNumSteps; ++i) {
-    curr_dir += get_accel(h2, curr_pos) * kStep;
-    curr_pos += curr_dir * kStep;
+    math::Vector3f const acc{get_accel(h2, curr_pos)};
+    float step{kStep};
+    if (0U == i) {
+      step *= rng->uniformReal(1.0e-6f, 1.0f);
+    }
+    step = utils::clamp(step, kMinStep, kStep);
+    curr_dir += acc * step;
+    curr_pos += curr_dir * step;
+
     if (curr_pos.SquaredNorm() <= 1.0f) {
       return true;
     }
@@ -85,14 +94,13 @@ __global__ void rendering_kernal(Camera const camera,
   uint64_t const pix_idx{u + v * image_width};
   uint8_t *const pixel{rendered_image + pix_idx * 3UL};
   math::Vector3f color{0.0f, 0.0f, 0.0f};
-  utils::RandomNumberGenerator camera_rng{pix_idx * 3784435761UL};
+  utils::RandomNumberGenerator rng{pix_idx * 3784435761UL};
   uint32_t constexpr kNumSamples{1U};
   for (uint32_t i{0U}; i < kNumSamples; ++i) {
-    Ray const ray{
-        camera.getDefocusPerturbedRay(PixCoord(u, v), 0.0f, &camera_rng)};
+    Ray const ray{camera.getDefocusPerturbedRay(PixCoord(u, v), 0.0f, &rng)};
     math::Vector3f curr_color{};
     bool const hit_event_horizon{
-        get_ray_color(ray, back_ground, acc_disk_tex, curr_color)};
+        get_ray_color(ray, back_ground, acc_disk_tex, &rng, curr_color)};
     color += curr_color;
   }
   color /= kNumSamples;
