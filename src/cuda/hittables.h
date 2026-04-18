@@ -130,6 +130,7 @@ class BlackHole {
   float idr2_{};
   float half_disk_thickness_{};
   DeviceAccretionDiskTexture device_acc_disk_tex_{};
+  float disk_width_{};
 };
 
 class HostHittableList {
@@ -327,6 +328,13 @@ class DeviceSchwarzschildSpace {
  private:
   DEVICE_FUNC bool HitBlackHoles(Ray const &ray, Intervalf const &interval,
                                  HitRecordCuda &hit_record) const noexcept;
+
+  DEVICE_FUNC math::Vector3f GetAcc(float const *const h2_list,
+                                    math::Vector3f const &pos) const noexcept;
+
+  DEVICE_FUNC float StepAdaptiveEuler(float const *const h2_list,
+                                      math::Vector3f &pos,
+                                      math::Vector3f &dir) const noexcept;
 
  private:
   Config config_{};

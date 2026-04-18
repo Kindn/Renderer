@@ -62,6 +62,7 @@ BlackHole::BlackHole(Config const &config,
   disk_normal_ = config_.rotation * math::Vector3f::UnitZ();
   odr2_ = config_.outer_disk_radius * config_.outer_disk_radius;
   idr2_ = config_.inner_disk_radius * config_.inner_disk_radius;
+  disk_width_ = config_.outer_disk_radius - config_.inner_disk_radius;
   half_disk_thickness_ = 0.5f * config_.disk_thickness;
   origin_top_surface_ = config_.position + half_disk_thickness_ * disk_normal_;
   origin_bottom_surface_ =
@@ -71,10 +72,10 @@ BlackHole::BlackHole(Config const &config,
 
 DEVICE_FUNC bool BlackHole::Hit(Ray const &ray, Intervalf const &interval,
                                 HitRecordCuda &hit_record) const noexcept {
-  // float t_h{0.0f};
-  // math::Vector3f n_h{};
-  // math::Vector3f p_h{};
-  bool const hit_h{HitEventHorizon(ray, interval)};
+  float t_h{0.0f};
+  math::Vector3f n_h{};
+  math::Vector3f p_h{};
+  bool const hit_h{HitEventHorizon(ray, interval, t_h, p_h, n_h)};
   float t_d{0.0f};
   math::Vector3f n_d{};
   math::Vector3f p_d{};
@@ -97,8 +98,7 @@ DEVICE_FUNC bool BlackHole::Hit(Ray const &ray, Intervalf const &interval,
     hit_record.SetFaceNormal(&ray, n_d);
     hit_record.t = t_d;
     hit_record.p = p_d;
-    float const scale{(r_xy - config_.outer_disk_radius) /
-                      (config_.inner_disk_radius - config_.outer_disk_radius)};
+    float const scale{(config_.outer_disk_radius - r_xy) / disk_width_};
     float const density{tex_value * scale * scale};
     hit_record.color.x() =
         fmin(1.0f, scale * config_.disk_attenuation.x() + 1.0f - scale);
@@ -222,7 +222,7 @@ DEVICE_FUNC bool BlackHole::HitAccretionDisk(
   }
 
   t = root;
-  p = ray.at(t);
+  p = ipt;
   math::Vector3f const p_loc{config_.rotation.Conjugated() *
                              (p - config_.position)};
   float const theta{atan2f(p_loc.y(), p_loc.x())};
@@ -230,14 +230,13 @@ DEVICE_FUNC bool BlackHole::HitAccretionDisk(
   // float const mapped_r{
   //     0.25f *
   //     (config_.outer_disk_radius - 2.0f * config_.inner_disk_radius + r_xy) /
-  //     (config_.outer_disk_radius - config_.inner_disk_radius)};
+  //     disk_width_};
   // tex_value =
   //     tex2D<float>(device_acc_disk_tex_.d__tex, mapped_r * cosf(theta) +
   //     0.5f,
   //                  mapped_r * sinf(theta) + 0.5f);
   float const u{theta / (2.0f * M_PIf32) + 0.5f};
-  float const v{(r_xy - config_.inner_disk_radius) /
-                (config_.outer_disk_radius - config_.inner_disk_radius)};
+  float const v{(r_xy - config_.inner_disk_radius) / disk_width_};
   tex_value = tex2D<float>(device_acc_disk_tex_.d__tex, u, v);
   if (AccretionDiskTextureType::TRANSMISSION_PROBABILITY ==
           device_acc_disk_tex_.type &&
@@ -573,8 +572,34 @@ DEVICE_FUNC bool DeviceSchwarzschildSpace::Hit(
 }
 
 INLINE_DEVICE_FUNC math::Vector3f get_accel(float const h2,
-                                            math::Vector3f const r) {
+                                            math::Vector3f const &r) {
   return -1.5f * h2 * powf(r.SquaredNorm(), -2.5f) * r;
+}
+
+DEVICE_FUNC math::Vector3f DeviceSchwarzschildSpace::GetAcc(
+    float const *const h2_list, math::Vector3f const &pos) const noexcept {
+  math::Vector3f acc{0.0f, 0.0f, 0.0f};
+  for (uint32_t i{0U}; i < objects_.num_black_holes; ++i) {
+    acc += get_accel(h2_list[i],
+                     pos - objects_.d__black_holes[i].config().position);
+  }
+
+  return acc;
+}
+
+DEVICE_FUNC float DeviceSchwarzschildSpace::StepAdaptiveEuler(
+    float const *const h2_list, math::Vector3f &pos,
+    math::Vector3f &dir) const noexcept {
+  float constexpr kMaxStep{3.0f};
+  float constexpr kMinStep{1.0e-2};
+  math::Vector3f const acc{GetAcc(h2_list, pos)};
+
+  float const step{utils::clamp(
+      0.01f / (powf(acc.SquaredNorm(), 0.25f) + 1.0e-10f), kMinStep, kMaxStep)};
+  dir += acc * step;
+  pos += dir * step;
+
+  return step;
 }
 
 DEVICE_FUNC bool DeviceSchwarzschildSpace::Hit(
@@ -599,31 +624,29 @@ DEVICE_FUNC bool DeviceSchwarzschildSpace::Hit(
   }
 
   float s{0.0f};
-  float step{0.1f};
   float ds{};
 
-  math::Vector3f acc{0.0f, 0.0f, 0.0f};
+  // math::Vector3f acc{0.0f, 0.0f, 0.0f};
   math::Vector3f dp{};
   math::Vector3f curr_pos{ray.getOrigin()};
+  math::Vector3f next_pos{curr_pos};
   math::Vector3f curr_dir{ray.getDirection()};
   Ray curr_ray{};
   float const *const h2_list{smem_h2_map + tidx * objects_.num_black_holes};
   math::Vector3f emitted{0.0f, 0.0f, 0.0f};
   math::Vector3f scattered{1.0f, 1.0f, 1.0f};
   bool hit_anything{false};
-  for (float t{0.0f}; t <= config_.max_marching_time && s <= interval.max();
-       t += step) {
-    acc.SetZero();
-    for (uint32_t i{0U}; i < objects_.num_black_holes; ++i) {
-      acc += get_accel(h2_list[i],
-                       curr_pos - objects_.d__black_holes[i].config().position);
-    }
-    curr_dir += acc * step;
-    dp = curr_dir * step;
-    curr_pos += dp;
+  float step{};
+  for (float t{0.0f}; t <= config_.max_marching_time && s <= interval.max();) {
+    next_pos = curr_pos;
+    step = StepAdaptiveEuler(h2_list, next_pos, curr_dir);
+    dp = next_pos - curr_pos;
     ds = dp.Norm();
+    t += step;
+
     curr_ray.setOrigin(curr_pos);
     curr_ray.setDirection(curr_dir);
+    curr_pos = next_pos;
     Intervalf const curr_int{fmax(interval.min() - s, 0.0f),
                              fmin(interval.max() - s, ds)};
     if (s + ds < camera_prior_.nearest_obj_boundary_dist) {
