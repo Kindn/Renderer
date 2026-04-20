@@ -193,8 +193,8 @@ void Bloom::Initialize() {
     res_desc.res.array.array = data_.d__mip_blurred_bright_region_arr[i];
     cudaTextureDesc tex_desc{};
     memset(&tex_desc, 0, sizeof(tex_desc));
-    tex_desc.addressMode[0] = cudaAddressModeWrap;
-    tex_desc.addressMode[1] = cudaAddressModeWrap;
+    tex_desc.addressMode[0] = cudaAddressModeClamp;
+    tex_desc.addressMode[1] = cudaAddressModeClamp;
     tex_desc.filterMode = cudaFilterModeLinear;
     tex_desc.readMode = cudaReadModeElementType;
     tex_desc.normalizedCoords = 1;
