@@ -35,7 +35,7 @@ void render2(Camera const &camera, HostSchwarzschildSpace const &host_world,
              DeviceSchwarzschildSpace const &device_world,
              RayTracerConfig const &config, HdriSkyBackground const back_ground,
              uint64_t const image_width, uint64_t const image_height,
-             std::shared_ptr<Bloom> const &bloom,
+             std::shared_ptr<Bloom> const &bloom, float const time,
              uint8_t *const d__rendered_image);
 
 }  // namespace cuda

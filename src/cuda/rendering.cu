@@ -253,13 +253,13 @@ DEVICE_FUNC math::Vector3f get_ray_color(
 DEVICE_FUNC math::Vector3f get_ray_color(
     Ray const &ray, DeviceSchwarzschildSpace const &world,
     HdriSkyBackground const *const background, float const *const r_list,
-    float *const smem_h2_map) {
+    float *const smem_h2_map, float const time) {
   float const inff{INFINITY};
   Intervalf const interval{1.0e-8f, inff};
   HitRecordCuda hit_record{};
   math::Vector3f color{1.0f, 1.0f, 1.0f};
   bool const hit_anything{
-      world.Hit(ray, interval, r_list, smem_h2_map, hit_record)};
+      world.Hit(ray, interval, r_list, smem_h2_map, time, hit_record)};
   if (hit_record.is_event_horizon) {
     color = hit_record.emitted;
   } else {
@@ -271,13 +271,11 @@ DEVICE_FUNC math::Vector3f get_ray_color(
   return color;
 }
 
-__global__ void ray_tracing_kernal(Camera const camera,
-                                   DeviceSchwarzschildSpace const world,
-                                   HdriSkyBackground const back_ground,
-                                   uint64_t const image_width,
-                                   uint64_t const image_height,
-                                   RayTracerConfig const config,
-                                   uint8_t *const rendered_image) {
+__global__ void ray_tracing_kernal(
+    Camera const camera, DeviceSchwarzschildSpace const world,
+    HdriSkyBackground const back_ground, uint64_t const image_width,
+    uint64_t const image_height, RayTracerConfig const config, float const time,
+    uint8_t *const rendered_image) {
   uint64_t const u{blockIdx.x * blockDim.x + threadIdx.x};
   uint64_t const v{blockIdx.y * blockDim.y + threadIdx.y};
   if (u >= image_width || v >= image_height) {
@@ -310,11 +308,14 @@ __global__ void ray_tracing_kernal(Camera const camera,
       256.0f * intensity.clamp(linearToGamma(color.x(), 2.0f)), 0.0f, 255.0f));
 }
 
-__global__ void ray_tracing_kernal(
-    Camera const camera, DeviceSchwarzschildSpace const world,
-    HdriSkyBackground const back_ground, uint64_t const image_width,
-    uint64_t const image_height, RayTracerConfig const config,
-    float const *const r_list, uint8_t *const rendered_image) {
+__global__ void ray_tracing_kernal(Camera const camera,
+                                   DeviceSchwarzschildSpace const world,
+                                   HdriSkyBackground const back_ground,
+                                   uint64_t const image_width,
+                                   uint64_t const image_height,
+                                   RayTracerConfig const config,
+                                   float const *const r_list, float const time,
+                                   uint8_t *const rendered_image) {
   extern __shared__ float h2_map[];
 
   uint64_t const u{blockIdx.x * blockDim.x + threadIdx.x};
@@ -337,7 +338,7 @@ __global__ void ray_tracing_kernal(
     //                              {u, v}, config.max_sample_pert,
     //                              &camera_rng)};
     // Ray const ray{camera.getPosition(), dir};
-    color += get_ray_color(ray, world, &back_ground, r_list, h2_map);
+    color += get_ray_color(ray, world, &back_ground, r_list, h2_map, time);
   }
   color /= config.samples_per_pixel;
   pixel[0] = static_cast<uint8_t>(utils::clamp<float>(
@@ -348,11 +349,14 @@ __global__ void ray_tracing_kernal(
       256.0f * intensity.clamp(linearToGamma(color.x(), 2.0f)), 0.0f, 255.0f));
 }
 
-__global__ void ray_tracing_kernal(
-    Camera const camera, DeviceSchwarzschildSpace const world,
-    HdriSkyBackground const back_ground, uint64_t const image_width,
-    uint64_t const image_height, RayTracerConfig const config,
-    float const *const r_list, float *const rendered_hdr_image) {
+__global__ void ray_tracing_kernal(Camera const camera,
+                                   DeviceSchwarzschildSpace const world,
+                                   HdriSkyBackground const back_ground,
+                                   uint64_t const image_width,
+                                   uint64_t const image_height,
+                                   RayTracerConfig const config,
+                                   float const *const r_list, float const time,
+                                   float *const rendered_hdr_image) {
   extern __shared__ float h2_map[];
 
   uint64_t const u{blockIdx.x * blockDim.x + threadIdx.x};
@@ -369,7 +373,7 @@ __global__ void ray_tracing_kernal(
   for (int32_t i{0}; i < config.samples_per_pixel; ++i) {
     Ray const ray{camera.getDefocusPerturbedRay(
         PixCoord(u, v), config.max_sample_pert, &camera_rng)};
-    color += get_ray_color(ray, world, &back_ground, r_list, h2_map);
+    color += get_ray_color(ray, world, &back_ground, r_list, h2_map, time);
   }
   color /= config.samples_per_pixel;
   memcpy(pixel, color.data(), sizeof(float) * 3UL);
@@ -437,7 +441,7 @@ void render2(Camera const &camera, DeviceHittableList const &world,
 void render(Camera const &camera, DeviceSchwarzschildSpace const &world,
             RayTracerConfig const &config, HdriSkyBackground const back_ground,
             uint64_t const image_width, uint64_t const image_height,
-            uint8_t *const d__rendered_image) {
+            float const time, uint8_t *const d__rendered_image) {
   dim3 const block_dim{BLOCK_DIM_X, BLOCK_DIM_Y};
   dim3 const grid_dim{GRID_DIM(image_width, block_dim.x),
                       GRID_DIM(image_height, block_dim.y)};
@@ -445,7 +449,7 @@ void render(Camera const &camera, DeviceSchwarzschildSpace const &world,
   // << std::endl;
   ray_tracing_kernal<<<grid_dim, block_dim>>>(camera, world, back_ground,
                                               image_width, image_height, config,
-                                              d__rendered_image);
+                                              time, d__rendered_image);
   CUDA_CHECK(cudaDeviceSynchronize());
   // std::cout << "Rendering done. " << std::endl;
 }
@@ -454,7 +458,7 @@ void render2(Camera const &camera, HostSchwarzschildSpace const &host_world,
              DeviceSchwarzschildSpace const &device_world,
              RayTracerConfig const &config, HdriSkyBackground const back_ground,
              uint64_t const image_width, uint64_t const image_height,
-             std::shared_ptr<Bloom> const &bloom,
+             std::shared_ptr<Bloom> const &bloom, float const time,
              uint8_t *const d__rendered_image) {
   assert(nullptr != bloom);
 
@@ -487,7 +491,7 @@ void render2(Camera const &camera, HostSchwarzschildSpace const &host_world,
   //     d__r_list, d__rendered_image);
   ray_tracing_kernal<<<grid_dim, block_dim, smem_size>>>(
       camera, device_world, back_ground, image_width, image_height, config,
-      d__r_list, d__hdr_image);
+      d__r_list, time, d__hdr_image);
   bloom->Apply(d__hdr_image, d__rendered_image);
   CUDA_CHECK(cudaDeviceSynchronize());
 

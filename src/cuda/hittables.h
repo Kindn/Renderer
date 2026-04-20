@@ -5,6 +5,7 @@
 #include "cuda/utils/math.h"
 #include "geometry/polyhedrons.h"
 #include "math/ode_solvers.h"
+#include "math/math.h"
 
 namespace cuda {
 
@@ -86,6 +87,7 @@ class BlackHole {
       HostAccretionDiskTexture const &host_acc_disk_tex) noexcept;
 
   DEVICE_FUNC bool Hit(Ray const &ray, Intervalf const &interval,
+                       float const time,
                        HitRecordCuda &hit_record) const noexcept;
 
   HOST_DEVICE_FUNC Config const &config() const { return config_; }
@@ -106,9 +108,11 @@ class BlackHole {
                                    math::Vector3f &outer_normal) const;
 
   DEVICE_FUNC bool HitAccretionDisk(Ray const &ray, Intervalf const &interval,
-                                    float &t, math::Vector3f &p,
+                                    float const time, float &t,
+                                    math::Vector3f &p,
                                     math::Vector3f &outer_normal,
-                                    float &tex_value, float &r_xy) const;
+                                    float &tex_value, float &r_xy,
+                                    float &redshift) const;
 
   void UploadTexture(HostAccretionDiskTexture const host_acc_disk_tex);
 
@@ -314,6 +318,7 @@ class DeviceSchwarzschildSpace {
   DEVICE_FUNC bool Hit(Ray const &ray, Intervalf const &interval,
                        float const *const __restrict__ r_list,
                        float *const smem_h2_map,
+                       float const time,
                        HitRecordCuda &hit_record) const noexcept;
 
   INLINE_HOST_DEVICE_FUNC Objects const &objects() const { return objects_; }
@@ -327,6 +332,7 @@ class DeviceSchwarzschildSpace {
 
  private:
   DEVICE_FUNC bool HitBlackHoles(Ray const &ray, Intervalf const &interval,
+                                 float const time,
                                  HitRecordCuda &hit_record) const noexcept;
 
   DEVICE_FUNC math::Vector3f GetAcc(float const *const h2_list,

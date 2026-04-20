@@ -71,6 +71,7 @@ BlackHole::BlackHole(Config const &config,
 }
 
 DEVICE_FUNC bool BlackHole::Hit(Ray const &ray, Intervalf const &interval,
+                                float const time,
                                 HitRecordCuda &hit_record) const noexcept {
   float t_h{0.0f};
   math::Vector3f n_h{};
@@ -81,8 +82,9 @@ DEVICE_FUNC bool BlackHole::Hit(Ray const &ray, Intervalf const &interval,
   math::Vector3f p_d{};
   float tex_value{};
   float r_xy{};
-  bool const hit_d{
-      HitAccretionDisk(ray, interval, t_d, p_d, n_d, tex_value, r_xy)};
+  float redshift{1.0f};
+  bool const hit_d{HitAccretionDisk(ray, interval, time, t_d, p_d, n_d,
+                                    tex_value, r_xy, redshift)};
   bool const hit_anything{hit_h || hit_d};
 
   if (hit_h && !hit_d) {
@@ -109,8 +111,8 @@ DEVICE_FUNC bool BlackHole::Hit(Ray const &ray, Intervalf const &interval,
     hit_record.emitted =
         AccretionDiskTextureType::PARTICLE_DENSITY == device_acc_disk_tex_.type
             ? config_.disk_emission * density * 2.0f * powf(r_xy, -3.0f) *
-                  config_.brightness_scale
-            : config_.disk_emission;
+                  redshift * config_.brightness_scale
+            : config_.disk_emission * redshift;
     hit_record.scattered = (AccretionDiskTextureType::PARTICLE_DENSITY ==
                             device_acc_disk_tex_.type);
     hit_record.final_dir = ray.getDirection();
@@ -201,8 +203,9 @@ DEVICE_FUNC bool BlackHole::HitEventHorizon(
 }
 
 DEVICE_FUNC bool BlackHole::HitAccretionDisk(
-    Ray const &ray, Intervalf const &interval, float &t, math::Vector3f &p,
-    math::Vector3f &outer_normal, float &tex_value, float &r_xy) const {
+    Ray const &ray, Intervalf const &interval, float const time, float &t,
+    math::Vector3f &p, math::Vector3f &outer_normal, float &tex_value,
+    float &r_xy, float &redshift) const {
   float const d_dot_n{ray.getDirection().Dot(disk_normal_)};
   math::Vector3f const op{(config_.position - ray.getOrigin())};
   float const op_dot_n{op.Dot(disk_normal_)};
@@ -215,18 +218,15 @@ DEVICE_FUNC bool BlackHole::HitAccretionDisk(
     return false;
   }
 
-  math::Vector3f const ipt{ray.at(root)};
-  float const dist2{(ipt - config_.position).SquaredNorm()};
-  if (dist2 > odr2_ || dist2 < idr2_) {
-    return false;
-  }
-
   t = root;
-  p = ipt;
-  math::Vector3f const p_loc{config_.rotation.Conjugated() *
-                             (p - config_.position)};
+  p = ray.at(root);
+  math::Vector3f const r{p - config_.position};
+  math::Vector3f const p_loc{config_.rotation.Conjugated() * r};
   float const theta{atan2f(p_loc.y(), p_loc.x())};
   r_xy = hypotf(p_loc.x(), p_loc.y());
+  if (r_xy > config_.outer_disk_radius || r_xy < config_.inner_disk_radius) {
+    return false;
+  }
   // float const mapped_r{
   //     0.25f *
   //     (config_.outer_disk_radius - 2.0f * config_.inner_disk_radius + r_xy) /
@@ -235,7 +235,13 @@ DEVICE_FUNC bool BlackHole::HitAccretionDisk(
   //     tex2D<float>(device_acc_disk_tex_.d__tex, mapped_r * cosf(theta) +
   //     0.5f,
   //                  mapped_r * sinf(theta) + 0.5f);
-  float const u{theta / (2.0f * M_PIf32) + 0.5f};
+  float const vel{M_SQRT1_2f32 * sqrtf(config_.sr / r_xy)};
+  float const angv{vel / r_xy};
+  math::Vector3f const vn{disk_normal_.Cross(r.Normalized())};
+  redshift = (1.0f - vel * vn.Dot(ray.getDirection().Normalized())) /
+             sqrtf(1.0f - vel * vel);
+  float const u{math::NormalizeAngle(theta - angv * time) / (2.0f * M_PIf32) +
+                0.5f};
   float const v{(r_xy - config_.inner_disk_radius) / disk_width_};
   tex_value = tex2D<float>(device_acc_disk_tex_.d__tex, u, v);
   if (AccretionDiskTextureType::TRANSMISSION_PROBABILITY ==
@@ -547,7 +553,7 @@ DEVICE_FUNC bool DeviceSchwarzschildSpace::Hit(
       continue;
     }
     HitRecordCuda curr_hit_record{};
-    if (HitBlackHoles(curr_ray, curr_int, curr_hit_record)) {
+    if (HitBlackHoles(curr_ray, curr_int, 0.0f, curr_hit_record)) {
       hit_record.color = curr_hit_record.color;
       hit_record.emitted = curr_hit_record.emitted;
       hit_record.scattered = curr_hit_record.scattered;
@@ -605,7 +611,7 @@ DEVICE_FUNC float DeviceSchwarzschildSpace::StepAdaptiveEuler(
 DEVICE_FUNC bool DeviceSchwarzschildSpace::Hit(
     Ray const &ray, Intervalf const &interval,
     float const *const __restrict__ r_list, float *const smem_h2_map,
-    HitRecordCuda &hit_record) const noexcept {
+    float const time, HitRecordCuda &hit_record) const noexcept {
   __syncthreads();
   uint32_t const tidx{threadIdx.x + threadIdx.y * blockDim.x};
   float h[3]{};
@@ -654,7 +660,7 @@ DEVICE_FUNC bool DeviceSchwarzschildSpace::Hit(
       continue;
     }
     HitRecordCuda curr_hit_record{};
-    if (HitBlackHoles(curr_ray, curr_int, curr_hit_record)) {
+    if (HitBlackHoles(curr_ray, curr_int, time, curr_hit_record)) {
       hit_anything = true;
       emitted += scattered.CwiseProduct(curr_hit_record.emitted);
       scattered = scattered.CwiseProduct(curr_hit_record.color);
@@ -684,7 +690,7 @@ DEVICE_FUNC bool DeviceSchwarzschildSpace::Hit(
 }
 
 DEVICE_FUNC bool DeviceSchwarzschildSpace::HitBlackHoles(
-    Ray const &ray, Intervalf const &interval,
+    Ray const &ray, Intervalf const &interval, float const time,
     HitRecordCuda &hit_record) const noexcept {
   HitRecordCuda temp_rec;
   bool hit_anything = false;
@@ -693,7 +699,8 @@ DEVICE_FUNC bool DeviceSchwarzschildSpace::HitBlackHoles(
   //* Hit blackholes
   for (uint64_t i{0UL}; i < objects_.num_black_holes; ++i) {
     auto const object{objects_.d__black_holes + i};
-    if (object->Hit(ray, Intervalf(interval.min(), closest_so_far), temp_rec)) {
+    if (object->Hit(ray, Intervalf(interval.min(), closest_so_far), time,
+                    temp_rec)) {
       hit_anything = true;
       closest_so_far = temp_rec.t;
       hit_record = temp_rec;
